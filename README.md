@@ -22,28 +22,9 @@
 
 ## 構成
 
-`Std` / `Batteries` の慣習に倣い、実装と定理をモジュール単位で分割している。
-
-```
-Cplib.lean                          ルート (各集約モジュールを import)
-Cplib/
-  Util/
-    Number.lean                     中点計算と区間縮小補題 (実装と不可分のため非分割)
-    Container.lean                  集約: Basic + Lemmas
-    Container/Basic.lean            uniqueSorted / prefixSum (実装)
-    Container/Lemmas.lean           Container の定理 (現状スタブ)
-  Algorithm/
-    Bisect.lean                     集約: Basic + Lemmas
-    Bisect/Basic.lean               二分探索 / lowerBound / upperBound (実装)
-    Bisect/Lemmas.lean              Bisect の定理 (現状スタブ)
-  Structure/
-    Heap.lean                       集約: Basic + Lemmas
-    Heap/Basic.lean                 二分ヒープ (実装)
-    Heap/Lemmas.lean                Heap の定理 (現状スタブ)
-    SegTree.lean / SegTree/{Basic,Lemmas}.lean          セグメント木
-```
-
-ファイル分割の方針 (`Std.Data.HashMap.{Basic,Lemmas}` と同じ):
+アルゴリズム、グラフ、データ構造、汎用ユーティリティなどの分類ごとに、`Cplib` 以下へ
+モジュールを配置する。`Std` / `Batteries` の慣習に倣い、実装と定理は原則として次のように分割する
+(`Std.Data.HashMap.{Basic,Lemmas}` と同じ):
 
 - `Cplib.<分類>.<名前>.Basic` … 実装。他の `Basic` のみに依存し、**`Mathlib` を import しない**。
 - `Cplib.<分類>.<名前>.Lemmas` … 定理。`Basic` と証明用の依存 (`Mathlib` 等) を import する。
@@ -52,10 +33,6 @@ Cplib/
 **実装だけを軽く使いたい場合 (AtCoder 提出など) は `...Basic` を直接 import する。**
 `Lemmas` (および `Mathlib`) を引かないのでビルドが速い。実装を編集したときの再ビルドも、
 `Basic` が `Mathlib` 非依存なので軽い。
-
-- 4.22.0 でビルドできない作業中の証明は `Wip` ライブラリに隔離する。`defaultTargets`
-  に含めていないため、`lake build` (= 既定ビルド) は常にグリーンを保つ。移植が済んだ証明は
-  対応する `Lemmas` へ移す。
 
 ## ビルド
 
@@ -66,24 +43,24 @@ lake update
 # Mathlib のビルド済みキャッシュを取得 (初回ビルドを高速化)
 lake exe cache get
 
-# 実装ライブラリのビルド (既定ターゲット)
+# ライブラリ全体のビルド
 lake build
-
-# 作業中の証明の移植状況を確認 (現状は失敗する想定)
-lake build Wip
 ```
 
 ## AtCoder 用の単一ファイル生成
 
 `scripts/bundle.py` はエントリファイルから到達可能な `Cplib.*` import を依存順に
-展開する。AtCoder 側に存在する Mathlib / Std などの import は先頭に残す。
+展開する。AtCoder 側に存在する Mathlib / Std などの import は先頭に残す。生成物には、
+AtCoder の生成 AI 利用ルールに基づく参照 URL と MIT ライセンス全文をコメントとして付加する。
 
 ```sh
-python3 scripts/bundle.py ../atc/Main.lean -o ../atc/Submit.lean
+python3 scripts/bundle.py path/to/Main.lean -o Submit.lean
 ```
 
-通常は `atc/` 側の `make submit` を使う。生成後のファイルは必ず Lean 4.22.0 で
-executable としてビルドしてから提出する。
+参照 URL は `--source-url`、ライセンスファイルは `--license` で差し替えられる。
+ライセンスを埋め込まない場合は `--no-license` を指定する。
+
+生成後のファイルは、提出前に Lean 4.22.0 で executable としてビルドして確認する。
 
 ## ドキュメント生成 (ローカル)
 
@@ -100,19 +77,8 @@ executable としてビルドしてから提出する。
 xdg-open .lake/build/doc/Cplib.html   # 各モジュールは Cplib/<Name>.html
 ```
 
-### この環境固有の注意点
-
-スクリプトは以下の 2 点を自動で処理している。直接 `lake build Cplib:docs` を叩く場合は手動対応が必要:
-
-1. **`DOCGEN_SRC=file`** … doc-gen4 は既定でソースリンクを GitHub リモートから解決するが、
-   ローカル生成では git remote が無いと失敗する。`DOCGEN_SRC=file` でローカル `file://`
-   リンクに切り替える。GitHub Pages 等で公開する際は `DOCGEN_SRC=github` + git remote 設定に変更する。
-2. **UnicodeBasic の `precompileModules` 無効化** … doc-gen4 依存の `UnicodeBasic` は、この環境では
-   `precompileModules := true` だと外部 C シンボル (`unicode_case_lookup`) を解決できず `.so` 読み込みに失敗する。
-   `.lake/packages/UnicodeBasic/lakefile.lean` で `false` に変更すると解消する
-   (`lake update` で元に戻るため、スクリプトが都度適用する)。
-
-> 注: 初回は doc-gen4 本体のビルドも走るため時間がかかる。
+スクリプトはローカルのソースリンクを生成し、依存パッケージの互換性調整も行う。
+初回は doc-gen4 本体もビルドするため時間がかかる。
 
 ## ライセンス
 

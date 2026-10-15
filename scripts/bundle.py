@@ -11,6 +11,7 @@ from pathlib import Path
 
 IMPORT_RE = re.compile(r"^[ \t]*import[ \t]+(.+?)[ \t]*(?:--.*)?$")
 MODULE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_'.]*(?:\.[A-Za-z_][A-Za-z0-9_']*)*$")
+DEFAULT_SOURCE_URL = "https://github.com/KowerKoint/cplib-lean"
 
 
 class BundleError(Exception):
@@ -37,7 +38,26 @@ def module_path(cplib_root: Path, module: str) -> Path:
     return cplib_root.joinpath(*module.split(".")).with_suffix(".lean")
 
 
-def bundle(entry: Path, cplib_root: Path) -> str:
+def comment_block(source_url: str, license_text: str | None) -> str:
+    contents = [
+        "This file is generated. Edit the original sources, not this file.",
+        "",
+        f"Cplib source: {source_url}",
+    ]
+    if license_text is not None:
+        contents.extend(["", license_text.rstrip()])
+    body = "\n".join(contents)
+    if "-/" in body:
+        raise BundleError("generated header contains the Lean comment terminator '-/'")
+    return f"/-\n{body}\n-/\n\n"
+
+
+def bundle(
+    entry: Path,
+    cplib_root: Path,
+    source_url: str = DEFAULT_SOURCE_URL,
+    license_text: str | None = None,
+) -> str:
     entry = entry.resolve()
     cplib_root = cplib_root.resolve()
     if not entry.is_file():
@@ -85,9 +105,7 @@ def bundle(entry: Path, cplib_root: Path) -> str:
         else:
             remember_external(name)
 
-    output: list[str] = [
-        "/- This file is generated. Edit the original sources, not this file. -/\n"
-    ]
+    output: list[str] = [comment_block(source_url, license_text)]
     if external_imports:
         output.extend(f"import {name}\n" for name in external_imports)
         output.append("\n")
@@ -119,6 +137,21 @@ def parse_args() -> argparse.Namespace:
         default=Path(__file__).resolve().parent.parent,
         help="directory containing Cplib.lean (default: parent of this script)",
     )
+    parser.add_argument(
+        "--source-url",
+        default=DEFAULT_SOURCE_URL,
+        help=f"reference URL written into the generated file (default: {DEFAULT_SOURCE_URL})",
+    )
+    parser.add_argument(
+        "--license",
+        type=Path,
+        help="license file to embed (default: LICENSE under --cplib-root)",
+    )
+    parser.add_argument(
+        "--no-license",
+        action="store_true",
+        help="do not embed a license notice",
+    )
     parser.add_argument("-o", "--output", type=Path, help="output file (default: stdout)")
     return parser.parse_args()
 
@@ -126,7 +159,11 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     try:
-        result = bundle(args.entry, args.cplib_root)
+        license_text = None
+        if not args.no_license:
+            license_path = args.license or args.cplib_root / "LICENSE"
+            license_text = license_path.read_text(encoding="utf-8")
+        result = bundle(args.entry, args.cplib_root, args.source_url, license_text)
         if args.output is None:
             sys.stdout.write(result)
         else:
