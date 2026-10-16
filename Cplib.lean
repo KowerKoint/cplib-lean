@@ -5,6 +5,9 @@ import Cplib.Util.Container
 -- Algorithms
 import Cplib.Algorithm.Bisect
 
+-- Graph algorithms
+import Cplib.Graph
+
 -- Data structures
 import Cplib.Structure.Heap
 import Cplib.Structure.SegTree
