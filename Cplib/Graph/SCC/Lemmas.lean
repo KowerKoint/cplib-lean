@@ -38,4 +38,17 @@ def ValidInput (n : Nat) (g : Array (List Nat)) : Prop :=
   rw [outer]
   simp
 
+/-- 孤立した各頂点はそれぞれ一つの強連結成分になる。 -/
+example : scc 3 #[[], [], []] = [[2], [1], [0]] := by
+  native_decide
+
+/-- 一つの有向閉路は一つの強連結成分になる。 -/
+example : scc 3 #[[1], [2], [0]] = [[0, 2, 1]] := by
+  native_decide
+
+/-- 複数成分を、成分間の辺に関するトポロジカル順で返す。 -/
+example : scc 6 #[[1], [0, 2], [3], [2], [5], []] =
+    [[4], [5], [0, 1], [2, 3]] := by
+  native_decide
+
 end SCC

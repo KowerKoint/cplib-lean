@@ -217,4 +217,15 @@ theorem pop_data_perm [BEq α] [LawfulBEq α] (heap : Heap α) (h : 0 < heap.n) 
     heap.top? = some (heap.top h) := by
   simp [top?, top, h]
 
+private def drainNat (heap : Heap Nat) : List Nat :=
+  if h : 0 < heap.n then heap.top h :: drainNat (heap.pop h) else []
+termination_by heap.n
+decreasing_by
+  rw [pop_n]
+  omega
+
+/-- 一括構築と反復 `pop` が、重複を保って優先度順に要素を返す回帰テスト。 -/
+example : drainNat (ofArray #[5, 1, 4, 1, 3]) = [1, 1, 3, 4, 5] := by
+  native_decide
+
 end Heap
