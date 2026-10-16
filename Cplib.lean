@@ -4,6 +4,8 @@ import Cplib.Util.Container
 
 -- Algorithms
 import Cplib.Algorithm.Bisect
+import Cplib.Algorithm.FloorSum
+import Cplib.Algorithm.String
 
 -- Graph algorithms
 import Cplib.Graph
@@ -11,6 +13,8 @@ import Cplib.Graph
 -- Data structures
 import Cplib.Structure.Heap
 import Cplib.Structure.SegTree
+import Cplib.Structure.FenwickTree
+import Cplib.Structure.UnionFind
 
 /-!
 # Cplib
@@ -27,5 +31,4 @@ Lean 4.22.0 (AtCoder と同一) でビルドできるモジュールをここに
 実装だけを軽く使いたい場合 (AtCoder 提出など) は `...Basic` を直接 import すると、
 `Lemmas` (および `Mathlib`) を引かずにビルドできる。
 
-`mvcgen` 依存など 4.22.0 でビルドできない作業中の証明は `Wip` ライブラリ側に隔離している。
 -/
