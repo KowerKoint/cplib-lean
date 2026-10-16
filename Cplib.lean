@@ -12,6 +12,7 @@ import Cplib.Graph
 
 -- Data structures
 import Cplib.Structure.Heap
+import Cplib.Structure.LazySegTree
 import Cplib.Structure.SegTree
 import Cplib.Structure.FenwickTree
 import Cplib.Structure.UnionFind
