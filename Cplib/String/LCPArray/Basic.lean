@@ -1,4 +1,4 @@
-import Cplib.Algorithm.String.SuffixArray.Basic
+import Cplib.String.SuffixArray.Basic
 
 namespace LCPArray
 

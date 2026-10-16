@@ -1,4 +1,4 @@
-import Cplib.Algorithm.String.ZAlgorithm.Basic
+import Cplib.String.ZAlgorithm.Basic
 import Mathlib.Tactic
 
 namespace ZAlgorithm

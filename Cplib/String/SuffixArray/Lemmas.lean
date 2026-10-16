@@ -1,4 +1,4 @@
-import Cplib.Algorithm.String.SuffixArray.Basic
+import Cplib.String.SuffixArray.Basic
 import Mathlib.Data.List.FinRange
 import Mathlib.Tactic
 

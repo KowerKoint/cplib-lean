@@ -5,7 +5,7 @@ import Cplib.Util.Container
 -- Algorithms
 import Cplib.Algorithm.Bisect
 import Cplib.Algorithm.FloorSum
-import Cplib.Algorithm.String
+import Cplib.String
 
 -- Graph algorithms
 import Cplib.Graph

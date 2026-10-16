@@ -1,4 +1,4 @@
-import Cplib.Algorithm.String.LCPArray.Basic
+import Cplib.String.LCPArray.Basic
 import Mathlib.Data.List.FinRange
 import Mathlib.Tactic
 
