@@ -20,7 +20,8 @@ def bisectMax (ok ng : Nat) (p : Nat → Bool) : Nat :=
 
 def bisectMaxBelow (ng : Nat) (p : Fin ng → Bool) : Nat :=
   let p' (x : Nat) : Bool :=
-    if hx : x.pred < ng then p ⟨x.pred, hx⟩ else false
+    if x = 0 then true
+    else if hx : x.pred < ng then p ⟨x.pred, hx⟩ else false
   bisectMax' 0 ng.succ p' |>.pred
 
 /-- `p` が単調という前提で、`p` を満たす最小の値を探す。 -/
@@ -32,7 +33,8 @@ def bisectMin (ng ok : Nat) (p : Nat → Bool) : Nat :=
 
 def bisectMinBelow (ok : Nat) (p : Fin ok → Bool) : Nat :=
   let p' (x : Nat) : Bool :=
-    if hx : x.pred < ok then p ⟨x.pred, hx⟩ else false
+    if x = 0 then false
+    else if hx : x.pred < ok then p ⟨x.pred, hx⟩ else true
   bisectMin' 0 ok.succ p' |>.pred
 
 namespace Array

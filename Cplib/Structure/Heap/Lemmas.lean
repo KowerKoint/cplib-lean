@@ -1,4 +1,5 @@
 import Cplib.Structure.Heap.Basic
+import Cplib.Util.Container.Lemmas
 import Mathlib.Tactic
 
 /-!
@@ -56,6 +57,13 @@ theorem top_le (heap : Heap α) (hvalid : heap.Valid)
     (Impl.modifyUp heap idx).cmp = heap.cmp := by
   fun_induction Impl.modifyUp <;> simp_all
 
+theorem Impl.modifyUp_data_perm [BEq α] [LawfulBEq α]
+    (heap : Heap α) (idx : Fin heap.n) :
+    (Impl.modifyUp heap idx).data.toList.Perm heap.data.toList := by
+  fun_induction Impl.modifyUp <;> simp_all
+  apply List.Perm.trans (by assumption)
+  apply Vector.toList_swap_perm
+
 @[simp] theorem Impl.modifyDown_n (heap : Heap α) (idx : Fin heap.n) :
     (Impl.modifyDown heap idx).n = heap.n := by
   fun_induction Impl.modifyDown <;> simp_all
@@ -63,6 +71,14 @@ theorem top_le (heap : Heap α) (hvalid : heap.Valid)
 @[simp] theorem Impl.modifyDown_cmp (heap : Heap α) (idx : Fin heap.n) :
     (Impl.modifyDown heap idx).cmp = heap.cmp := by
   fun_induction Impl.modifyDown <;> simp_all
+
+theorem Impl.modifyDown_data_perm [BEq α] [LawfulBEq α]
+    (heap : Heap α) (idx : Fin heap.n) :
+    (Impl.modifyDown heap idx).data.toList.Perm heap.data.toList := by
+  fun_induction Impl.modifyDown <;> simp_all
+  all_goals
+    apply List.Perm.trans (by assumption)
+    apply Vector.toList_swap_perm
 
 @[simp] theorem empty_n (cmp : α → α → Ordering) :
     (empty cmp).n = 0 := rfl
@@ -86,6 +102,12 @@ theorem top_le (heap : Heap α) (hvalid : heap.Valid)
 @[simp] theorem add_cmp (heap : Heap α) (x : α) :
     (heap.add x).cmp = heap.cmp := by
   simp [add]
+
+theorem add_data_perm [BEq α] [LawfulBEq α] (heap : Heap α) (x : α) :
+    (heap.add x).data.toList.Perm (heap.data.toList ++ [x]) := by
+  unfold add
+  apply List.Perm.trans (Impl.modifyUp_data_perm _ _)
+  rw [Vector.toList_push]
 
 @[simp] theorem ofArray_n (xs : Array α) (cmp : α → α → Ordering) :
     (ofArray xs cmp).n = xs.size := by
@@ -118,6 +140,25 @@ theorem top_le (heap : Heap α) (hvalid : heap.Valid)
   rw [go]
   rfl
 
+theorem ofArray_data_perm [BEq α] [LawfulBEq α]
+    (xs : Array α) (cmp : α → α → Ordering) :
+    (ofArray xs cmp).data.toList.Perm xs.toList := by
+  unfold ofArray
+  rw [← Array.foldl_toList]
+  have go (ys : List α) (heap : Heap α) :
+      (ys.foldl (fun heap x => heap.add x) heap).data.toList.Perm
+        (heap.data.toList ++ ys) := by
+    induction ys generalizing heap with
+    | nil => simp
+    | cons y ys ih =>
+        simp only [List.foldl_cons]
+        apply List.Perm.trans (ih (heap.add y))
+        apply List.Perm.trans
+          (List.Perm.append_right ys (add_data_perm heap y))
+        simp
+  apply List.Perm.trans (go xs.toList (empty cmp))
+  simp
+
 @[simp] theorem pop_n (heap : Heap α) (h : 0 < heap.n) :
     (heap.pop h).n = heap.n - 1 := by
   simp [pop]
@@ -127,6 +168,39 @@ theorem top_le (heap : Heap α) (hvalid : heap.Valid)
     (heap.pop h).cmp = heap.cmp := by
   simp [pop]
   split <;> simp
+
+/-- `pop` は `top` を一つ取り除き、それ以外の要素を保存する。 -/
+theorem pop_data_perm [BEq α] [LawfulBEq α] (heap : Heap α) (h : 0 < heap.n) :
+    ((heap.pop h).data.toList ++ [heap.top h]).Perm heap.data.toList := by
+  let last : Fin heap.n := ⟨heap.n - 1, by omega⟩
+  let swapped := heap.data.swap 0 last
+  have hlast : swapped.toList.getLast (by
+      intro he
+      have he' := congrArg List.length he
+      simp at he'
+      omega) = heap.top h := by
+    rw [List.getLast_eq_getElem]
+    simp only [Vector.length_toList]
+    change swapped[heap.n - 1] = heap.data[0]
+    simp [swapped, last]
+  have hpop : swapped.pop.toList ++ [heap.top h] = swapped.toList := by
+    rw [Vector.toList_pop, ← hlast, List.dropLast_append_getLast]
+  by_cases hp : 0 < heap.n - 1
+  · let base : Heap α := ⟨heap.n - 1, swapped.pop, heap.cmp⟩
+    have heq : heap.pop h = Impl.modifyDown base ⟨0, hp⟩ := by
+      simp [pop, hp, base, swapped, last]
+    rw [heq]
+    apply List.Perm.trans
+      (List.Perm.append_right [heap.top h] (Impl.modifyDown_data_perm base ⟨0, hp⟩))
+    rw [hpop]
+    dsimp [swapped]
+    exact Vector.toList_swap_perm heap.data ⟨0, h⟩ last
+  · let base : Heap α := ⟨heap.n - 1, swapped.pop, heap.cmp⟩
+    have heq : heap.pop h = base := by
+      simp [pop, hp, base, swapped, last]
+    rw [heq, hpop]
+    dsimp [swapped]
+    exact Vector.toList_swap_perm heap.data ⟨0, h⟩ last
 
 @[simp] theorem top?_empty (cmp : α → α → Ordering) :
     (empty cmp).top? = none := rfl

@@ -2,6 +2,48 @@ import Cplib.Util.Container.Basic
 
 namespace Vector
 
+private theorem List.perm_swap [BEq α] [LawfulBEq α]
+    (l : List α) (i j : Nat) (hi : i < l.length) (hj : j < l.length) :
+    ((l.set i l[j]).set j l[i]).Perm l := by
+  rw [List.perm_iff_count]
+  intro a
+  rw [List.count_set (by simpa using hj), List.count_set hi]
+  simp only [List.getElem_set]
+  by_cases hij : i = j
+  · subst j
+    simp only
+    by_cases hia : l[i] == a
+    · have hc : 0 < l.count a := List.count_pos_iff.mpr (by
+        have hia' : l[i] = a := by simpa using hia
+        rw [← hia']
+        exact List.getElem_mem hi)
+      simp only [hia, if_true]
+      omega
+    · simp [hia]
+  · simp only [if_neg hij]
+    by_cases hia : l[i] == a <;> by_cases hja : l[j] == a
+    · have hc : 0 < l.count a := List.count_pos_iff.mpr (by
+        have hia' : l[i] = a := by simpa using hia
+        rw [← hia']
+        exact List.getElem_mem hi)
+      simp only [hia, hja, if_true]
+      omega
+    · have hc : 0 < l.count a := List.count_pos_iff.mpr (by
+        have hia' : l[i] = a := by simpa using hia
+        rw [← hia']
+        exact List.getElem_mem hi)
+      simp only [hia, hja, if_true]
+      omega
+    · simp [hia, hja]
+    · simp [hia, hja]
+
+/-- `Vector.swap` は要素の順列だけを変え、内容の多重集合を保存する。 -/
+theorem toList_swap_perm [BEq α] [LawfulBEq α]
+    (v : Vector α n) (i j : Fin n) :
+    (v.swap i j).toList.Perm v.toList := by
+  rw [Vector.toList_swap]
+  exact List.perm_swap v.toList i.val j.val (by simp) (by simp)
+
 /-- `Vector.set` を畳み込んでも、どの更新対象とも異なる添字の値は変わらない。 -/
 theorem getElem_foldl_set_of_forall_ne {N : Nat} {I : Type}
     (xs : List I) (idx : I → Nat) (hidx : ∀ x, idx x < N) (value : I → α)
@@ -118,6 +160,72 @@ theorem runLengthEncode_positive [BEq α] (xs : List α) :
         simp [List.all_cons] at hxs
         omega
 
+/-- Run-length encoding のキーには、元のリストの要素がちょうど一度ずつ現れる。 -/
+theorem mem_runLengthEncode_keys [BEq α] [LawfulBEq α]
+    (xs : List α) (a : α) :
+    a ∈ xs.runLengthEncode.map (·.1) ↔ a ∈ xs := by
+  induction xs with
+  | nil => simp [List.runLengthEncode]
+  | cons x xs ih =>
+      simp [List.runLengthEncode]
+      split
+      · rename_i hr
+        have hax : a ∉ xs := by
+          intro ha
+          have := ih.mpr ha
+          simp [hr] at this
+        simp [hax]
+      · rename_i b c tail hr
+        have ih' : (a = b ∨ a ∈ tail.map (·.1)) ↔ a ∈ xs := by
+          simpa [hr] using ih
+        split
+        · rename_i hxb
+          have hxb' : x = b := LawfulBEq.eq_of_beq hxb
+          subst b
+          constructor
+          · rintro ⟨k, hk⟩
+            simp only [List.mem_cons, Prod.mk.injEq] at hk
+            rcases hk with ⟨hax, _⟩ | hk
+            · exact Or.inl hax
+            · exact Or.inr (ih'.mp (Or.inr
+                (List.mem_map.mpr ⟨(a, k), hk, rfl⟩)))
+          · intro ha
+            rcases ha with hax | ha
+            · subst a
+              exact ⟨c + 1, by simp⟩
+            · rcases ih'.mpr ha with hax | htail
+              · subst a
+                exact ⟨c + 1, by simp⟩
+              · obtain ⟨⟨b, k⟩, hk, hab⟩ := List.mem_map.mp htail
+                simp only at hab
+                subst b
+                exact ⟨k, by simp [hk]⟩
+        · constructor
+          · rintro ⟨k, hk⟩
+            simp only [List.mem_cons, Prod.mk.injEq] at hk
+            rcases hk with ⟨hax, _⟩ | ⟨hab, _⟩ | hk
+            · exact Or.inl hax
+            · exact Or.inr (ih'.mp (Or.inl hab))
+            · exact Or.inr (ih'.mp (Or.inr
+                (List.mem_map.mpr ⟨(a, k), hk, rfl⟩)))
+          · intro ha
+            rcases ha with hax | ha
+            · subst a
+              exact ⟨1, by simp⟩
+            · rcases ih'.mpr ha with hab | htail
+              · subst a
+                exact ⟨c, by simp⟩
+              · obtain ⟨⟨b', k⟩, hk, hab⟩ := List.mem_map.mp htail
+                simp only at hab
+                subst b'
+                exact ⟨k, by simp [hk]⟩
+
+theorem mem_uniqueSorted [Ord α] [BEq α] [LawfulBEq α]
+    (xs : List α) (a : α) :
+    a ∈ xs.uniqueSorted ↔ a ∈ xs := by
+  simp only [List.uniqueSorted, mem_runLengthEncode_keys]
+  exact List.mem_mergeSort
+
 def distinctWithNeighbor [BEq α] : List (α × Nat) → Prop
 | [] => True
 | [_] => True
@@ -186,6 +294,11 @@ theorem getElem_prefixSum [Zero α] [Add α] (xs : List α)
   exact getElem_prefixSum' 0 xs i hi
 
 namespace Array
+
+theorem mem_uniqueSorted [Ord α] [BEq α] [LawfulBEq α]
+    (xs : Array α) (a : α) :
+    a ∈ xs.uniqueSorted ↔ a ∈ xs := by
+  simp [Array.uniqueSorted, _root_.mem_uniqueSorted]
 
 @[simp] theorem prefixSum_size [Zero α] [Add α] (xs : Array α) :
     xs.prefixSum.size = xs.size + 1 := by
