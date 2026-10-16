@@ -2,9 +2,11 @@
 import Cplib.Util.Number
 import Cplib.Util.Container
 
--- Algorithms
-import Cplib.Algorithm.Bisect
-import Cplib.Algorithm.FloorSum
+-- Typical techniques
+import Cplib.Typical
+
+-- Number theory
+import Cplib.NumberTheory
 import Cplib.String
 
 -- Graph algorithms

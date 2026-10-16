@@ -1,4 +1,4 @@
-import Cplib.Algorithm.FloorSum.Basic
+import Cplib.NumberTheory.FloorSum.Basic
 import Mathlib.Tactic
 
 namespace FloorSum

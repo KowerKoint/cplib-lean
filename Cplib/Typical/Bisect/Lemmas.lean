@@ -1,4 +1,4 @@
-import Cplib.Algorithm.Bisect.Basic
+import Cplib.Typical.Bisect.Basic
 import Mathlib.Tactic
 
 theorem bisectMax'_bounds (hokng : ok < ng) (p : Nat → Bool) :
