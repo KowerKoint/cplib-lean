@@ -10,7 +10,7 @@ structure MaxFlow.EdgeInfo (n : Nat) where
   target : Fin n
   capacity : Nat
   flow : Nat
-deriving Repr, BEq
+deriving Repr, BEq, DecidableEq
 
 /-- Persistent residual network with stable insertion-order edge IDs. -/
 structure MaxFlow (n : Nat) where
@@ -39,6 +39,20 @@ def edge? (self : MaxFlow n) (edgeId : Nat) : Option (EdgeInfo n) := do
 
 def edges (self : MaxFlow n) : Array (EdgeInfo n) :=
   (Array.range self.original.size).filterMap self.edge?
+
+/-- Replace the capacity and current flow of an inserted edge. -/
+def changeEdge (self : MaxFlow n) (edgeId : Fin self.original.size)
+    (capacity : Nat) (flow : Fin (capacity + 1)) : MaxFlow n :=
+  let (source, target, _) := self.original[edgeId]
+  let forwardId := edgeId.val * 2
+  match self.residual[forwardId]?, self.residual[forwardId + 1]? with
+  | some forward, some reverse =>
+      { self with
+        original := self.original.set edgeId (source, target, capacity)
+        residual := self.residual
+          |>.set! forwardId { forward with capacity := capacity - flow.val }
+          |>.set! (forwardId + 1) { reverse with capacity := flow.val } }
+  | _, _ => self
 
 namespace Impl
 

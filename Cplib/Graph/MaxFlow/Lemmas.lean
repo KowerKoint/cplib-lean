@@ -34,4 +34,14 @@ private def limitedResult : Nat × Nat :=
 example : limitedResult = (4, 6) := by
   native_decide
 
+private def oneEdgeGraph : MaxFlow 2 := ((empty 2).addEdge 0 1 10).2
+
+private theorem oneEdgeGraph_size : oneEdgeGraph.original.size = 1 := rfl
+
+private def changedEdgeResult : Option (EdgeInfo 2) :=
+  let graph := oneEdgeGraph.changeEdge ⟨0, by rw [oneEdgeGraph_size]; decide⟩ 7 ⟨3, by decide⟩
+  graph.edge? 0
+
+example : changedEdgeResult = some ⟨0, 1, 7, 3⟩ := by native_decide
+
 end MaxFlow

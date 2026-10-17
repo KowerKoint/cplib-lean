@@ -12,7 +12,7 @@ structure MinCostFlow.EdgeInfo (n : Nat) where
   capacity : Nat
   flow : Nat
   cost : Nat
-deriving Repr, BEq
+deriving Repr, BEq, DecidableEq
 
 /-- Persistent min-cost-flow network for nonnegative inserted edge costs. -/
 structure MinCostFlow (n : Nat) where
