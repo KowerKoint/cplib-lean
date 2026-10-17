@@ -1,17 +1,109 @@
 import Cplib.Structure.LazySegTree.Basic
+import Cplib.Structure.SegTree.Lemmas
 import Mathlib.Tactic
 
 namespace LazySegTree
-variable {M F : Type} [Mul M] [One M] [Mul F] [One F] [SMul F M]
+variable {M F : Type}
 
-omit [Mul F] [SMul F M] in
-@[simp] theorem ofArray_sz (xs : Array M) : (ofArray (F := F) xs).sz = xs.size := rfl
+@[simp] theorem ofArray_sz [Mul M] [One M] [One F] (xs : Array M) :
+    (ofArray (F := F) xs).sz = xs.size := rfl
 
-@[simp] theorem applyRange_sz (self : LazySegTree M F) (l r : Fin (self.sz + 1)) (f : F) :
+@[simp] theorem applyRange_sz [Mul M] [One M] [Mul F] [One F] [SMul F M]
+    (self : LazySegTree M F) (l r : Fin (self.sz + 1)) (f : F) :
     (self.applyRange l r f).sz = self.sz := rfl
 
-@[simp] theorem applyRange_cap (self : LazySegTree M F) (l r : Fin (self.sz + 1)) (f : F) :
+@[simp] theorem applyRange_cap [Mul M] [One M] [Mul F] [One F] [SMul F M]
+    (self : LazySegTree M F) (l r : Fin (self.sz + 1)) (f : F) :
     (self.applyRange l r f).cap = self.cap := rfl
+
+@[simp] theorem applyRange_sz_le [Mul M] [One M] [Mul F] [One F] [SMul F M]
+    (self : LazySegTree M F)
+    (l r : Fin (self.sz + 1)) (f : F) :
+    (self.applyRange l r f).sz_le = self.sz_le := rfl
+
+@[simp] theorem applyRange_cap_pos [Mul M] [One M] [Mul F] [One F] [SMul F M]
+    (self : LazySegTree M F)
+    (l r : Fin (self.sz + 1)) (f : F) :
+    (self.applyRange l r f).cap_pos = self.cap_pos := rfl
+
+@[simp] theorem applyRange_cap_pow2 [Mul M] [One M] [Mul F] [One F] [SMul F M]
+    (self : LazySegTree M F)
+    (l r : Fin (self.sz + 1)) (f : F) :
+    (self.applyRange l r f).cap_pow2 = self.cap_pow2 := rfl
+
+/-- The representation invariant of a lazy segment tree.  An internal node stores
+the action recorded at that node applied to the product of its children; unused
+leaves contain the monoid identity. -/
+def Valid [Monoid M] [Monoid F] [MulDistribMulAction F M]
+    (self : LazySegTree M F) : Prop :=
+  (∀ i : Fin self.cap, i.val ≠ 0 →
+    self.data[i.val]'(by
+      have hi := i.isLt
+      have hc := self.cap_pos
+      omega) =
+      self.lazy[i.val]'(by
+        have hi := i.isLt
+        have hc := self.cap_pos
+        omega) •
+        (self.data[i.val * 2]'(by
+          have hi := i.isLt
+          omega) *
+        self.data[i.val * 2 + 1]'(by
+          have hi := i.isLt
+          omega))) ∧
+  (∀ i : Fin self.cap, self.sz ≤ i.val →
+    self.data[self.cap + i.val]'(by
+      have hi := i.isLt
+      omega) = 1)
+
+theorem ofArray_Valid [Monoid M] [Monoid F] [MulDistribMulAction F M]
+    (xs : Array M) : Valid (ofArray (F := F) xs) := by
+  have h := SegTree.ofArray_Valid xs
+  constructor
+  · intro i hi0
+    simpa [ofArray, Valid] using h.1 i hi0
+  · intro i hi
+    simpa [ofArray, Valid] using h.2 i hi
+
+@[simp] theorem ofArray_lazy [Monoid M] [Monoid F] [MulDistribMulAction F M]
+    (xs : Array M) :
+    (ofArray (F := F) xs).lazy =
+      Vector.replicate (xs.size.nextPowerOfTwo * 2) 1 := rfl
+
+@[simp] theorem allProd_ofArray [Monoid M] [Monoid F] [MulDistribMulAction F M]
+    (xs : Array M) :
+    (ofArray (F := F) xs).allProd = (SegTree.ofArray xs).allProd := rfl
+
+theorem apply_eq_applyRange [Mul M] [One M] [Mul F] [One F] [SMul F M]
+    (self : LazySegTree M F) (i : Fin self.sz) (f : F) :
+    self.apply i f = self.applyRange ⟨i, by omega⟩ ⟨i + 1, by omega⟩ f := rfl
+
+private theorem Impl.prod_of_ge [Monoid M] [Monoid F] [MulDistribMulAction F M]
+    {cap : Nat} (ql qr : Nat) (hqr : qr ≤ ql) (fuel i left right : Nat)
+    (pending : F) (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2)) :
+    Impl.prod ql qr fuel i left right pending data lazy = 1 := by
+  induction fuel generalizing i left right pending with
+  | zero => rfl
+  | succ fuel ih =>
+    simp only [Impl.prod]
+    split
+    · rfl
+    · rename_i hdisjoint
+      split
+      · rename_i hfull
+        simp only [Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq,
+          not_or] at hdisjoint hfull
+        omega
+      · rw [ih, ih, mul_one]
+
+@[simp] theorem prod_of_ge [Monoid M] [Monoid F] [MulDistribMulAction F M]
+    (self : LazySegTree M F) (l r : Fin (self.sz + 1)) (h : r ≤ l) :
+    self.prod l r = 1 := by
+  exact Impl.prod_of_ge l r (by omega) self.cap 1 0 self.cap 1 self.data self.lazy
+
+@[simp] theorem prod_self [Monoid M] [Monoid F] [MulDistribMulAction F M]
+    (self : LazySegTree M F) (i : Fin (self.sz + 1)) : self.prod i i = 1 :=
+  prod_of_ge self i i (by rfl)
 
 private structure SumLen where
   sum : Nat
