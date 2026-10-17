@@ -65,6 +65,8 @@ python3 scripts/bundle.py path/to/Main.lean -o Submit.lean
 ## ドキュメント生成 (ローカル)
 
 [doc-gen4](https://github.com/leanprover/doc-gen4) で API ドキュメントを生成する。
+公開版は <https://kowerkoint.github.io/cplib-lean/Cplib.html> から参照できる。
+
 付属スクリプトを使うのが簡単:
 
 ```sh
