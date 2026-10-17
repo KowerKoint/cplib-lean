@@ -17,7 +17,35 @@ if [ -f "$UNICODE_LAKEFILE" ]; then
   sed -i 's/  precompileModules := true/  precompileModules := false/' "$UNICODE_LAKEFILE"
 fi
 
-DOCGEN_SRC="${DOCGEN_SRC:-file}" lake build Cplib:docs
+lake build Cplib doc-gen4
+
+DOC_DIR="$ROOT/.lake/build/doc"
+DECL_DIR="$DOC_DIR/declarations"
+rm -rf "$DOC_DIR"
+mkdir -p "$DECL_DIR"
+
+DOCGEN="$(lake env which doc-gen4)"
+LEAN_PATH="$(lake env printenv LEAN_PATH)"
+export LEAN_PATH
+SOURCE_MODE="${DOCGEN_SRC:-file}"
+
+# `lake build Cplib:docs` recursively generates documentation for every imported
+# module.  Since the proof modules import Mathlib, that produces well over a
+# thousand unrelated pages.  Invoke `single` only for `Cplib` modules.  The
+# Lean search path is exported once above, avoiding a `lake env` startup for
+# every module while retaining accurate per-file source links.
+while IFS= read -r source; do
+  module="${source%.lean}"
+  module="${module//\//.}"
+  if [ "$SOURCE_MODE" = github ]; then
+    source_uri="https://github.com/KowerKoint/cplib-lean/blob/main/$source"
+  else
+    source_uri="file://$ROOT/$source"
+  fi
+  "$DOCGEN" single --build "$ROOT/.lake/build" "$module" "$source_uri"
+done < <(find Cplib -type f -name '*.lean' -print | LC_ALL=C sort; printf '%s\n' Cplib.lean)
+
+"$DOCGEN" index --build "$ROOT/.lake/build"
 
 echo
 echo "ドキュメントを生成しました: $ROOT/.lake/build/doc/index.html"
