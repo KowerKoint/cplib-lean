@@ -220,6 +220,313 @@ private theorem Impl.push_preserves_one [Monoid M] [Monoid F]
     rw [Impl.push_data_right data lazy hi, hj, MulDistribMulAction.smul_one]
   rw [Impl.push_data_of_ne data lazy (by omega) (by omega), hj]
 
+/- During a recursive range update, only ancestors of the current subtree may
+temporarily fail their node equation.  Parameterising the exceptional nodes
+keeps that temporary state explicit. -/
+private def internalValidOutside [Monoid M] [Monoid F] [MulDistribMulAction F M]
+    {cap : Nat} (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (except : Nat → Prop) : Prop :=
+  ∀ j, j ≠ 0 → j < cap → ¬ except j → internalAt data lazy j
+
+private theorem Impl.push_internalValidOutside [Monoid M] [Monoid F]
+    [MulDistribMulAction F M] {cap i : Nat}
+    (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (except : Nat → Prop) (hi0 : i ≠ 0) (hi : i < cap)
+    (hvalid : internalValidOutside data lazy except) :
+    let result := Impl.push data lazy i
+    internalValidOutside result.1 result.2 except := by
+  dsimp only
+  intro j hj0 hj hjex
+  by_cases hji : j = i
+  · subst j
+    exact Impl.push_internalAt data lazy hi0 hi (hvalid i hi0 hi hjex)
+  by_cases hjl : j = i * 2
+  · subst j
+    exact Impl.push_internalAt_left data lazy hi0 hj
+      (hvalid (i * 2) (by omega) hj hjex)
+  by_cases hjr : j = i * 2 + 1
+  · subst j
+    exact Impl.push_internalAt_right data lazy hj
+      (hvalid (i * 2 + 1) (by omega) hj hjex)
+  exact Impl.push_internalAt_away data lazy hji hjl hjr
+    (hvalid j hj0 hj hjex)
+
+private theorem Impl.applyNode_internalValidOutside [Monoid M] [Monoid F]
+    [MulDistribMulAction F M] {cap i : Nat}
+    (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2)) (f : F)
+    (except : Nat → Prop) (hi0 : i ≠ 0)
+    (hvalid : internalValidOutside data lazy except) :
+    let result := Impl.applyNode data lazy i f
+    internalValidOutside result.1 result.2
+      (fun j => except j ∨ j = i / 2) := by
+  dsimp only
+  intro j hj0 hj hjex
+  have hje : ¬ except j := fun h => hjex (Or.inl h)
+  have hjp : j ≠ i / 2 := fun h => hjex (Or.inr h)
+  by_cases hji : j = i
+  · subst j
+    exact Impl.applyNode_internalAt data lazy f hi0 hj (hvalid i hi0 hj hje)
+  apply Impl.applyNode_internalAt_of_away data lazy f hji
+  · intro h
+    apply hjp
+    omega
+  · intro h
+    apply hjp
+    omega
+  · exact hvalid j hj0 hj hje
+
+private theorem Impl.repair_internalValidOutside [Monoid M] [Monoid F]
+    [MulDistribMulAction F M] {cap i : Nat}
+    (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (except : Nat → Prop) (hi : i < cap)
+    (hlazy : lazy.getD i 1 = 1)
+    (hvalid : internalValidOutside data lazy (fun j => except j ∨ j = i)) :
+    internalValidOutside
+      (Impl.setD data i (data.getD (i * 2) 1 * data.getD (i * 2 + 1) 1)) lazy
+      (fun j => except j ∨ j = i / 2) := by
+  intro j hj0 hj hjex
+  have hje : ¬ except j := fun h => hjex (Or.inl h)
+  have hjp : j ≠ i / 2 := fun h => hjex (Or.inr h)
+  by_cases hji : j = i
+  · subst j
+    unfold internalAt
+    rw [Impl.getD_setD_self _ _ _ (by omega),
+      Impl.getD_setD_of_ne _ _ _ (by omega),
+      Impl.getD_setD_of_ne _ _ _ (by omega)]
+    rw [hlazy, one_smul]
+  · unfold internalAt
+    rw [Impl.getD_setD_of_ne _ _ _ (fun h => hji h.symm),
+      Impl.getD_setD_of_ne _ _ _ (by
+        intro h
+        apply hjp
+        omega),
+      Impl.getD_setD_of_ne _ _ _ (by
+        intro h
+        apply hjp
+        omega)]
+    exact hvalid j hj0 hj (by simp [hje, hji])
+
+private theorem Impl.applyRange_lazy_of_lt [Monoid M] [Monoid F]
+    [MulDistribMulAction F M] {cap : Nat} (f : F) (ql qr : Nat) :
+    ∀ (fuel i l r : Nat) (data : Vector M (cap * 2))
+      (lazy : Vector F (cap * 2)) (j : Nat), j < i →
+      (Impl.applyRange f ql qr fuel i l r data lazy).2.getD j 1 =
+        lazy.getD j 1 := by
+  intro fuel
+  induction fuel with
+  | zero => intros; rfl
+  | succ fuel ih =>
+      intro i l r data lazy j hji
+      rw [Impl.applyRange]
+      split
+      · rfl
+      · split
+        · simp only [Impl.applyNode]
+          rw [Impl.getD_setD_of_ne _ _ _ (by omega)]
+        · let pushed := Impl.push data lazy i
+          let mid := l + (r - l) / 2
+          let left := Impl.applyRange f ql qr fuel (i * 2) l mid pushed.1 pushed.2
+          let right := Impl.applyRange f ql qr fuel (i * 2 + 1) mid r left.1 left.2
+          change right.2.getD j 1 = lazy.getD j 1
+          rw [ih (i * 2 + 1) mid r left.1 left.2 j (by omega),
+            ih (i * 2) l mid pushed.1 pushed.2 j (by omega)]
+          dsimp only [pushed]
+          rw [Impl.push_lazy_of_ne data lazy (by omega) (by omega) (by omega)]
+
+private theorem Impl.applyRange_internalValidOutside [Monoid M] [Monoid F]
+    [MulDistribMulAction F M] {cap : Nat} (f : F) (ql qr : Nat) :
+    ∀ (fuel i l r : Nat) (data : Vector M (cap * 2))
+      (lazy : Vector F (cap * 2)) (except : Nat → Prop),
+      i ≠ 0 → r ≤ cap → (r - l).isPowerOfTwo → i * (r - l) = cap + l →
+      internalValidOutside data lazy except →
+      let result := Impl.applyRange f ql qr fuel i l r data lazy
+      internalValidOutside result.1 result.2
+        (fun j => except j ∨ j = i / 2) := by
+  intro fuel
+  induction fuel with
+  | zero =>
+      intro i l r data lazy except hi0 hrcap hp hcap hvalid
+      simp only [Impl.applyRange]
+      intro j hj0 hj hjex
+      exact hvalid j hj0 hj (fun he => hjex (Or.inl he))
+  | succ fuel ih =>
+      intro i l r data lazy except hi0 hrcap hp hcap hvalid
+      rw [Impl.applyRange]
+      split
+      · dsimp only
+        intro j hj0 hj hjex
+        exact hvalid j hj0 hj (fun he => hjex (Or.inl he))
+      · rename_i hdisjoint
+        split
+        · exact Impl.applyNode_internalValidOutside data lazy f except hi0 hvalid
+        · rename_i hfull
+          simp only [Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq,
+            not_or, not_and_or] at hdisjoint hfull
+          obtain ⟨k, hk⟩ := hp
+          cases k with
+          | zero =>
+              simp only [pow_zero] at hk
+              have : ql ≤ l ∧ r ≤ qr := by omega
+              rcases hfull with h | h <;> omega
+          | succ k =>
+              let mid := l + (r - l) / 2
+              have hd : r - l = 2 ^ k * 2 := by
+                simpa [Nat.pow_succ] using hk
+              have hil : i < cap := by
+                have : 0 < i := Nat.pos_of_ne_zero hi0
+                have hkpos : 0 < 2 ^ k := pow_pos (by omega) _
+                have hlr : l < r := by
+                  omega
+                have hr : r = l + 2 ^ k * 2 := by omega
+                rw [hd] at hcap
+                nlinarith
+              let pushed := Impl.push data lazy i
+              have hvp : internalValidOutside pushed.1 pushed.2 except :=
+                Impl.push_internalValidOutside data lazy except hi0 hil hvalid
+              have hmid : mid = l + 2 ^ k := by
+                dsimp [mid]
+                omega
+              have hleftPow : (mid - l).isPowerOfTwo := ⟨k, by omega⟩
+              have hrightPow : (r - mid).isPowerOfTwo := ⟨k, by omega⟩
+              have hml : mid - l = 2 ^ k := by omega
+              have hrm : r - mid = 2 ^ k := by omega
+              have hleftCap : (i * 2) * (mid - l) = cap + l := by
+                calc
+                  (i * 2) * (mid - l) = (i * 2) * 2 ^ k := by rw [hml]
+                  _ = i * (2 ^ k * 2) := by ring
+                  _ = cap + l := by simpa [hd] using hcap
+              have hrightCap : (i * 2 + 1) * (r - mid) = cap + mid := by
+                have hdcap : i * (2 ^ k * 2) = cap + l := by
+                  simpa [hd] using hcap
+                calc
+                  (i * 2 + 1) * (r - mid) = (i * 2 + 1) * 2 ^ k := by rw [hrm]
+                  _ = i * (2 ^ k * 2) + 2 ^ k := by ring
+                  _ = cap + mid := by rw [hmid, hdcap]; omega
+              let left := Impl.applyRange f ql qr fuel (i * 2) l mid pushed.1 pushed.2
+              have hvl : internalValidOutside left.1 left.2
+                  (fun j => except j ∨ j = i) := by
+                simpa [left] using
+                  ih (i * 2) l mid pushed.1 pushed.2 except (by omega)
+                    (by omega) hleftPow hleftCap hvp
+              let right := Impl.applyRange f ql qr fuel (i * 2 + 1) mid r left.1 left.2
+              have hvr : internalValidOutside right.1 right.2
+                  (fun j => except j ∨ j = i) := by
+                have h := ih (i * 2 + 1) mid r left.1 left.2
+                  (fun j => except j ∨ j = i) (by omega) hrcap hrightPow hrightCap hvl
+                have hparent : (i * 2 + 1) / 2 = i := by omega
+                simpa [right, hparent, or_assoc] using h
+              change internalValidOutside
+                (Impl.setD right.1 i
+                  (right.1.getD (i * 2) 1 * right.1.getD (i * 2 + 1) 1))
+                right.2 (fun j => except j ∨ j = i / 2)
+              apply Impl.repair_internalValidOutside right.1 right.2 except hil
+              · rw [Impl.applyRange_lazy_of_lt f ql qr fuel (i * 2 + 1) mid r
+                    left.1 left.2 i (by omega),
+                  Impl.applyRange_lazy_of_lt f ql qr fuel (i * 2) l mid
+                    pushed.1 pushed.2 i (by omega)]
+                exact Impl.push_lazy_root data lazy hil
+              · exact hvr
+
+private def paddingValid [One M] {cap : Nat} (data : Vector M (cap * 2))
+    (sz : Nat) : Prop :=
+  ∀ x, sz ≤ x → x < cap → data.getD (cap + x) 1 = 1
+
+private theorem Impl.applyRange_paddingValid [Monoid M] [Monoid F]
+    [MulDistribMulAction F M] {cap sz : Nat} (f : F) (ql qr : Nat)
+    (hqr : qr ≤ sz) :
+    ∀ (fuel i l r : Nat) (data : Vector M (cap * 2))
+      (lazy : Vector F (cap * 2)),
+      i ≠ 0 → r ≤ cap → (r - l).isPowerOfTwo →
+      i * (r - l) = cap + l → paddingValid data sz →
+      paddingValid (Impl.applyRange f ql qr fuel i l r data lazy).1 sz := by
+  intro fuel
+  induction fuel with
+  | zero => intros; assumption
+  | succ fuel ih =>
+      intro i l r data lazy hi0 hrcap hp hcap hpadding
+      rw [Impl.applyRange]
+      split
+      · exact hpadding
+      · rename_i hdisjoint
+        split
+        · rename_i hfull
+          intro x hsx hx
+          simp only [Impl.applyNode]
+          rw [Impl.getD_setD_of_ne]
+          · exact hpadding x hsx hx
+          · intro heq
+            simp only [Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq,
+              not_or] at hdisjoint hfull
+            have hlr : l < r := by
+              have := Nat.pos_of_isPowerOfTwo hp
+              omega
+            have hil : l < qr := by omega
+            have hid : r - l = 1 := by
+              by_contra hne
+              have hd2 : 2 ≤ r - l := by omega
+              have hic : cap ≤ i := by omega
+              have hprod : cap * 2 ≤ i * (r - l) :=
+                Nat.mul_le_mul hic hd2
+              omega
+            have hir : i = cap + l := by
+              rw [hid] at hcap
+              simpa using hcap
+            omega
+        · rename_i hfull
+          simp only [Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq,
+            not_or, not_and_or] at hdisjoint hfull
+          obtain ⟨k, hk⟩ := hp
+          cases k with
+          | zero =>
+              simp only [pow_zero] at hk
+              have : ql ≤ l ∧ r ≤ qr := by omega
+              rcases hfull with h | h <;> omega
+          | succ k =>
+              let mid := l + (r - l) / 2
+              have hd : r - l = 2 ^ k * 2 := by
+                simpa [Nat.pow_succ] using hk
+              have hkpos : 0 < 2 ^ k := pow_pos (by omega) _
+              have hil : i < cap := by
+                have hi : 0 < i := Nat.pos_of_ne_zero hi0
+                have hlr : l < r := by omega
+                rw [hd] at hcap
+                nlinarith
+              let pushed := Impl.push data lazy i
+              have hpadPush : paddingValid pushed.1 sz := by
+                intro x hsx hx
+                exact Impl.push_preserves_one data lazy hil (hpadding x hsx hx)
+              have hmid : mid = l + 2 ^ k := by
+                dsimp [mid]
+                omega
+              have hml : mid - l = 2 ^ k := by omega
+              have hrm : r - mid = 2 ^ k := by omega
+              have hleftCap : (i * 2) * (mid - l) = cap + l := by
+                calc
+                  (i * 2) * (mid - l) = (i * 2) * 2 ^ k := by rw [hml]
+                  _ = i * (2 ^ k * 2) := by ring
+                  _ = cap + l := by simpa [hd] using hcap
+              have hrightCap : (i * 2 + 1) * (r - mid) = cap + mid := by
+                have hdcap : i * (2 ^ k * 2) = cap + l := by
+                  simpa [hd] using hcap
+                calc
+                  (i * 2 + 1) * (r - mid) = (i * 2 + 1) * 2 ^ k := by rw [hrm]
+                  _ = i * (2 ^ k * 2) + 2 ^ k := by ring
+                  _ = cap + mid := by rw [hmid, hdcap]; omega
+              let left := Impl.applyRange f ql qr fuel (i * 2) l mid pushed.1 pushed.2
+              have hpadLeft : paddingValid left.1 sz :=
+                ih (i * 2) l mid pushed.1 pushed.2 (by omega) (by omega)
+                  ⟨k, hml⟩ hleftCap hpadPush
+              let right := Impl.applyRange f ql qr fuel (i * 2 + 1) mid r left.1 left.2
+              have hpadRight : paddingValid right.1 sz :=
+                ih (i * 2 + 1) mid r left.1 left.2 (by omega) hrcap
+                  ⟨k, hrm⟩ hrightCap hpadLeft
+              intro x hsx hx
+              change (Impl.setD right.1 i
+                (right.1.getD (i * 2) 1 * right.1.getD (i * 2 + 1) 1)).getD
+                  (cap + x) 1 = 1
+              rw [Impl.getD_setD_of_ne _ _ _ (by omega)]
+              exact hpadRight x hsx hx
+
 @[simp] theorem ofArray_sz [Mul M] [One M] [One F] (xs : Array M) :
     (ofArray (F := F) xs).sz = xs.size := rfl
 
@@ -291,6 +598,48 @@ theorem Valid.padding [Monoid M] [Monoid F] [MulDistribMulAction F M]
   simp only [Vector.size_toArray]
   rw [dif_pos (by omega)]
   exact h
+
+/-- A lazy range update preserves the representation invariant. -/
+theorem applyRange_Valid [Monoid M] [Monoid F] [MulDistribMulAction F M]
+    (self : LazySegTree M F) (hself : self.Valid)
+    (l r : Fin (self.sz + 1)) (f : F) :
+    (self.applyRange l r f).Valid := by
+  let result := Impl.applyRange f l r self.cap 1 0 self.cap self.data self.lazy
+  have hinternal : internalValidOutside self.data self.lazy (fun _ => False) := by
+    intro i hi0 hi _
+    exact hself.internalAt i hi0 hi
+  have hout := Impl.applyRange_internalValidOutside f l r self.cap 1 0 self.cap
+    self.data self.lazy (fun _ => False) (by omega) (by omega)
+    self.cap_pow2 (by simp) hinternal
+  have hpadding : paddingValid self.data self.sz := by
+    intro i hsi hi
+    exact hself.padding i hsi hi
+  have hpadout := Impl.applyRange_paddingValid f l r (by omega) self.cap 1 0 self.cap
+    self.data self.lazy (by omega) (by omega) self.cap_pow2 (by simp) hpadding
+  change Valid { self with data := result.1, lazy := result.2 }
+  constructor
+  · intro i hi0
+    have h := hout i.val hi0 i.isLt (by simp [result, hi0])
+    unfold internalAt Vector.getD Array.getD at h
+    simp only [Vector.size_toArray] at h
+    rw [dif_pos (by omega), dif_pos (by omega), dif_pos (by omega),
+      dif_pos (by omega)] at h
+    simpa only [result] using h
+  · intro i hsi
+    have hi : i.val < self.cap := i.isLt
+    have hsi' : self.sz ≤ i.val := by simpa using hsi
+    have h := hpadout i.val hsi' hi
+    unfold Vector.getD Array.getD at h
+    simp only [Vector.size_toArray] at h
+    rw [dif_pos (by omega)] at h
+    simpa only [result] using h
+
+/-- A point update is the singleton special case of a valid range update. -/
+theorem apply_Valid [Monoid M] [Monoid F] [MulDistribMulAction F M]
+    (self : LazySegTree M F) (hself : self.Valid)
+    (i : Fin self.sz) (f : F) : (self.apply i f).Valid := by
+  unfold apply
+  exact applyRange_Valid self hself _ _ f
 
 theorem ofArray_Valid [Monoid M] [Monoid F] [MulDistribMulAction F M]
     (xs : Array M) : Valid (ofArray (F := F) xs) := by
