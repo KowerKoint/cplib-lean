@@ -258,57 +258,11 @@ theorem runLengthEncode_distinctWithNeighbor [BEq α] [LawfulBEq α] (xs : List 
         · rw [hr] at hxs
           omega
 
-@[simp] theorem prefixSum'_length [Add α] (origin : α) (xs : List α) :
-    (xs.prefixSum' origin).length = xs.length + 1 := by
-  induction xs generalizing origin with
-  | nil => simp [List.prefixSum']
-  | cons x xs ih => simp [List.prefixSum', ih]
-
-@[simp] theorem prefixSum_length [Zero α] [Add α] (xs : List α) :
-    xs.prefixSum.length = xs.length + 1 := by
-  exact prefixSum'_length 0 xs
-
-/-- `prefixSum'` の `i` 番目は、先頭 `i` 要素を `origin` から左畳み込みした値。 -/
-theorem getElem_prefixSum' [Add α] (origin : α) (xs : List α)
-    (i : Nat) (hi : i < xs.length + 1) :
-    (xs.prefixSum' origin)[i]'(by simpa using hi) =
-      (xs.take i).foldl (· + ·) origin := by
-  induction xs generalizing origin i with
-  | nil =>
-      simp only [List.length_nil, Nat.zero_add] at hi
-      have : i = 0 := by omega
-      subst i
-      simp [List.prefixSum']
-  | cons x xs ih =>
-      cases i with
-      | zero => simp [List.prefixSum']
-      | succ i =>
-          simp only [List.length_cons] at hi
-          simp [List.prefixSum', ih (origin := origin + x) (i := i) (by omega)]
-
-/-- `prefixSum` の `i` 番目は、先頭 `i` 要素を `0` から左畳み込みした値。 -/
-theorem getElem_prefixSum [Zero α] [Add α] (xs : List α)
-    (i : Nat) (hi : i < xs.length + 1) :
-    xs.prefixSum[i]'(by simpa using hi) =
-      (xs.take i).foldl (· + ·) 0 := by
-  exact getElem_prefixSum' 0 xs i hi
-
 namespace Array
 
 theorem mem_uniqueSorted [Ord α] [BEq α] [LawfulBEq α]
     (xs : Array α) (a : α) :
     a ∈ xs.uniqueSorted ↔ a ∈ xs := by
   simp [Array.uniqueSorted, _root_.mem_uniqueSorted]
-
-@[simp] theorem prefixSum_size [Zero α] [Add α] (xs : Array α) :
-    xs.prefixSum.size = xs.size + 1 := by
-  simp [Array.prefixSum]
-
-theorem getElem_prefixSum [Zero α] [Add α] (xs : Array α)
-    (i : Nat) (hi : i < xs.size + 1) :
-    xs.prefixSum[i]'(by simpa using hi) =
-      (xs.toList.take i).foldl (· + ·) 0 := by
-  change xs.toList.prefixSum[i]'_ = _
-  exact _root_.getElem_prefixSum xs.toList i (by simpa using hi)
 
 end Array

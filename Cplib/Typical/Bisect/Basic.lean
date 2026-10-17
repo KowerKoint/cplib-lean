@@ -1,19 +1,19 @@
-import Cplib.Util.Number
+import Cplib.Util.Number.Basic
 
 /-- `p` が単調 (true から false へ一度だけ変化) という前提で、`p` を満たす最大の値を探す。 -/
 def bisectMax' (ok ng : Nat) (p : Nat → Bool) : Nat :=
-  if h : ok + 1 < ng then
-    let mid := Nat.midpoint ok ng h
-    if p mid.v then
-      bisectMax' mid.v ng p
+  if _h : ok + 1 < ng then
+    let mid := Nat.midpoint ok ng
+    if p mid then
+      bisectMax' mid ng p
     else
-      bisectMax' ok mid.v p
+      bisectMax' ok mid p
   else
     ok
 termination_by ng - ok
 decreasing_by
-  · exact Nat.midpoint_decrease_range_right ok ng h
-  · exact Nat.midpoint_decrease_range_left ok ng h
+  · exact Nat.midpoint_decrease_range_right ok ng _h
+  · exact Nat.midpoint_decrease_range_left ok ng _h
 
 def bisectMax (ok ng : Nat) (p : Nat → Bool) : Nat :=
   bisectMax' ok ng p

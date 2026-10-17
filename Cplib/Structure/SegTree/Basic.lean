@@ -1,4 +1,4 @@
-import Cplib.Util.Number
+import Cplib.Util.Number.Basic
 
 structure SegTree (M : Type) where
   sz : Nat

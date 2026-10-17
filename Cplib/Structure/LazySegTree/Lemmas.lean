@@ -91,6 +91,42 @@ private theorem Impl.push_lazy_root [Mul M] [One M] [Mul F] [One F] [SMul F M]
   simp only [Impl.push]
   rw [Impl.getD_setD_self _ _ _ (by omega)]
 
+private theorem Impl.push_data_of_ne [Mul M] [One M] [Mul F] [One F] [SMul F M]
+    {cap i j : Nat} (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (hleft : i * 2 ≠ j) (hright : i * 2 + 1 ≠ j) :
+    (Impl.push data lazy i).1.getD j 1 = data.getD j 1 := by
+  simp only [Impl.push]
+  rw [Impl.getD_setD_of_ne _ _ _ hright,
+    Impl.getD_setD_of_ne _ _ _ hleft]
+
+private theorem Impl.push_lazy_left [Mul M] [One M] [Mul F] [One F] [SMul F M]
+    {cap i : Nat} (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (hi0 : i ≠ 0) (hi : i < cap) :
+    (Impl.push data lazy i).2.getD (i * 2) 1 =
+      lazy.getD i 1 * lazy.getD (i * 2) 1 := by
+  simp only [Impl.push]
+  rw [Impl.getD_setD_of_ne _ _ _ (by omega),
+    Impl.getD_setD_of_ne _ _ _ (by omega),
+    Impl.getD_setD_self _ _ _ (by omega)]
+
+private theorem Impl.push_lazy_right [Mul M] [One M] [Mul F] [One F] [SMul F M]
+    {cap i : Nat} (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (hi : i < cap) :
+    (Impl.push data lazy i).2.getD (i * 2 + 1) 1 =
+      lazy.getD i 1 * lazy.getD (i * 2 + 1) 1 := by
+  simp only [Impl.push]
+  rw [Impl.getD_setD_of_ne _ _ _ (by omega),
+    Impl.getD_setD_self _ _ _ (by omega)]
+
+private theorem Impl.push_lazy_of_ne [Mul M] [One M] [Mul F] [One F] [SMul F M]
+    {cap i j : Nat} (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (hleft : i * 2 ≠ j) (hright : i * 2 + 1 ≠ j) (hroot : i ≠ j) :
+    (Impl.push data lazy i).2.getD j 1 = lazy.getD j 1 := by
+  simp only [Impl.push]
+  rw [Impl.getD_setD_of_ne _ _ _ hroot,
+    Impl.getD_setD_of_ne _ _ _ hright,
+    Impl.getD_setD_of_ne _ _ _ hleft]
+
 private theorem Impl.push_internalAt [Monoid M] [Monoid F]
     [MulDistribMulAction F M] {cap i : Nat}
     (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
@@ -103,6 +139,86 @@ private theorem Impl.push_internalAt [Monoid M] [Monoid F]
     Impl.push_data_left data lazy hi, Impl.push_data_right data lazy hi]
   rw [one_smul, ← MulDistribMulAction.smul_mul]
   exact hvalid
+
+private theorem Impl.push_internalAt_left [Monoid M] [Monoid F]
+    [MulDistribMulAction F M] {cap i : Nat}
+    (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (hi0 : i ≠ 0) (hi : i * 2 < cap)
+    (hvalid : internalAt data lazy (i * 2)) :
+    let result := Impl.push data lazy i
+    internalAt result.1 result.2 (i * 2) := by
+  dsimp only
+  unfold internalAt
+  rw [Impl.push_data_left data lazy (by omega),
+    Impl.push_lazy_left data lazy hi0 (by omega),
+    Impl.push_data_of_ne data lazy (by omega) (by omega),
+    Impl.push_data_of_ne data lazy (by omega) (by omega),
+    mul_smul, hvalid, MulDistribMulAction.smul_mul]
+
+private theorem Impl.push_internalAt_right [Monoid M] [Monoid F]
+    [MulDistribMulAction F M] {cap i : Nat}
+    (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (hi : i * 2 + 1 < cap)
+    (hvalid : internalAt data lazy (i * 2 + 1)) :
+    let result := Impl.push data lazy i
+    internalAt result.1 result.2 (i * 2 + 1) := by
+  dsimp only
+  unfold internalAt
+  rw [Impl.push_data_right data lazy (by omega),
+    Impl.push_lazy_right data lazy (by omega),
+    Impl.push_data_of_ne data lazy (by omega) (by omega),
+    Impl.push_data_of_ne data lazy (by omega) (by omega),
+    mul_smul, hvalid, MulDistribMulAction.smul_mul]
+
+private theorem Impl.push_internalAt_away [Monoid M] [Monoid F]
+    [MulDistribMulAction F M] {cap i j : Nat}
+    (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (hroot : j ≠ i) (hleft : j ≠ i * 2) (hright : j ≠ i * 2 + 1)
+    (hvalid : internalAt data lazy j) :
+    let result := Impl.push data lazy i
+    internalAt result.1 result.2 j := by
+  dsimp only
+  unfold internalAt
+  rw [Impl.push_data_of_ne data lazy hleft.symm hright.symm,
+    Impl.push_lazy_of_ne data lazy hleft.symm hright.symm hroot.symm,
+    Impl.push_data_of_ne data lazy (by omega) (by omega),
+    Impl.push_data_of_ne data lazy (by omega) (by omega)]
+  exact hvalid
+
+private theorem Impl.push_internalValid [Monoid M] [Monoid F]
+    [MulDistribMulAction F M] {cap i : Nat}
+    (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (hi0 : i ≠ 0) (hi : i < cap)
+    (hvalid : ∀ j, j ≠ 0 → j < cap → internalAt data lazy j) :
+    let result := Impl.push data lazy i
+    ∀ j, j ≠ 0 → j < cap → internalAt result.1 result.2 j := by
+  dsimp only
+  intro j hj0 hj
+  by_cases hji : j = i
+  · subst j
+    exact Impl.push_internalAt data lazy hi0 hi (hvalid i hi0 hi)
+  by_cases hjl : j = i * 2
+  · subst j
+    exact Impl.push_internalAt_left data lazy hi0 hj
+      (hvalid (i * 2) (by omega) hj)
+  by_cases hjr : j = i * 2 + 1
+  · subst j
+    exact Impl.push_internalAt_right data lazy hj
+      (hvalid (i * 2 + 1) (by omega) hj)
+  exact Impl.push_internalAt_away data lazy hji hjl hjr (hvalid j hj0 hj)
+
+private theorem Impl.push_preserves_one [Monoid M] [Monoid F]
+    [MulDistribMulAction F M] {cap i j : Nat}
+    (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (hi : i < cap) (hj : data.getD j 1 = 1) :
+    (Impl.push data lazy i).1.getD j 1 = 1 := by
+  by_cases hjl : j = i * 2
+  · subst j
+    rw [Impl.push_data_left data lazy hi, hj, MulDistribMulAction.smul_one]
+  by_cases hjr : j = i * 2 + 1
+  · subst j
+    rw [Impl.push_data_right data lazy hi, hj, MulDistribMulAction.smul_one]
+  rw [Impl.push_data_of_ne data lazy (by omega) (by omega), hj]
 
 @[simp] theorem ofArray_sz [Mul M] [One M] [One F] (xs : Array M) :
     (ofArray (F := F) xs).sz = xs.size := rfl

@@ -8,18 +8,18 @@ theorem bisectMax'_bounds (hokng : ok < ng) (p : Nat → Bool) :
     ?_ ?_ ?_ ok ng) hokng
   · intro l r h mid hmid ih _
     subst mid
-    let mid := Nat.midpoint l r h
+    let mid := Nat.midpoint l r
     rw [bisectMax'.eq_1]
     simp only [dif_pos h, hmid]
-    have hbounds := ih mid.hvr
-    exact ⟨Nat.le_trans (Nat.le_of_lt mid.hlv) hbounds.1, hbounds.2⟩
+    have hbounds := ih (Nat.midpoint_lt h)
+    exact ⟨Nat.le_trans (Nat.le_of_lt (Nat.lt_midpoint h)) hbounds.1, hbounds.2⟩
   · intro l r h mid hmid ih _
     subst mid
-    let mid := Nat.midpoint l r h
+    let mid := Nat.midpoint l r
     rw [bisectMax'.eq_1]
     simp only [dif_pos h, hmid]
-    have hbounds := ih mid.hlv
-    exact ⟨hbounds.1, Nat.lt_trans hbounds.2 mid.hvr⟩
+    have hbounds := ih (Nat.lt_midpoint h)
+    exact ⟨hbounds.1, Nat.lt_trans hbounds.2 (Nat.midpoint_lt h)⟩
   · intro l r h hlr
     rw [bisectMax'.eq_1]
     simp [h, hlr]
@@ -62,41 +62,41 @@ theorem bisectMax_spec (hokng : ok < ng) (p : Nat → Bool)
   ) ?_ ?_ ?_ ok ng) hokng
   · intro l r h mid hmid ih _
     subst mid
-    let mid := Nat.midpoint l r h
-    have hrec : bisectMax' l r p = bisectMax' mid.v r p := by
+    let mid := Nat.midpoint l r
+    have hrec : bisectMax' l r p = bisectMax' mid r p := by
       rw [bisectMax'.eq_1]
       simp [mid, h, hmid]
     obtain ⟨⟨hmidres, hresr⟩, hspec⟩ :
-        (mid.v ≤ bisectMax' mid.v r p ∧ bisectMax' mid.v r p < r) ∧
-        ∀ x, mid.v < x → x < r →
-          if x ≤ bisectMax' mid.v r p then p x else ¬p x := by
-      simpa [mid] using ih mid.hvr
+        (mid ≤ bisectMax' mid r p ∧ bisectMax' mid r p < r) ∧
+        ∀ x, mid < x → x < r →
+          if x ≤ bisectMax' mid r p then p x else ¬p x := by
+      simpa [mid] using ih (Nat.midpoint_lt h)
     rw [hrec]
-    refine ⟨⟨Nat.le_trans (Nat.le_of_lt mid.hlv) hmidres, hresr⟩, ?_⟩
+    refine ⟨⟨Nat.le_trans (Nat.le_of_lt (Nat.lt_midpoint h)) hmidres, hresr⟩, ?_⟩
     intro x hlx hxr
-    by_cases hxm : x ≤ mid.v
-    · have hpx : p x := hmono x mid.v hxm (by simpa [mid] using hmid)
+    by_cases hxm : x ≤ mid
+    · have hpx : p x := hmono x mid hxm (by simpa [mid] using hmid)
       simp [if_pos (Nat.le_trans hxm hmidres), hpx]
     · exact hspec x (by omega) hxr
   · intro l r h mid hmid ih _
     subst mid
-    let mid := Nat.midpoint l r h
-    have hrec : bisectMax' l r p = bisectMax' l mid.v p := by
+    let mid := Nat.midpoint l r
+    have hrec : bisectMax' l r p = bisectMax' l mid p := by
       rw [bisectMax'.eq_1]
       simp [mid, h, hmid]
     obtain ⟨⟨hlres, hresmid⟩, hspec⟩ :
-        (l ≤ bisectMax' l mid.v p ∧ bisectMax' l mid.v p < mid.v) ∧
-        ∀ x, l < x → x < mid.v →
-          if x ≤ bisectMax' l mid.v p then p x else ¬p x := by
-      simpa [mid] using ih mid.hlv
+        (l ≤ bisectMax' l mid p ∧ bisectMax' l mid p < mid) ∧
+        ∀ x, l < x → x < mid →
+          if x ≤ bisectMax' l mid p then p x else ¬p x := by
+      simpa [mid] using ih (Nat.lt_midpoint h)
     rw [hrec]
-    refine ⟨⟨hlres, Nat.lt_trans hresmid mid.hvr⟩, ?_⟩
+    refine ⟨⟨hlres, Nat.lt_trans hresmid (Nat.midpoint_lt h)⟩, ?_⟩
     intro x hlx hxr
-    by_cases hxm : x < mid.v
+    by_cases hxm : x < mid
     · exact hspec x hlx hxm
-    · have hmidFalse : ¬p mid.v := by simpa [mid] using hmid
-      have hpx : ¬p x := fun hpx => hmidFalse (hmono mid.v x (by omega) hpx)
-      have hresx : bisectMax' l mid.v p < x :=
+    · have hmidFalse : ¬p mid := by simpa [mid] using hmid
+      have hpx : ¬p x := fun hpx => hmidFalse (hmono mid x (by omega) hpx)
+      have hresx : bisectMax' l mid p < x :=
         Nat.lt_of_lt_of_le hresmid (by omega)
       simp [Nat.not_le_of_lt hresx, hpx]
   · intro l r h hlr
