@@ -54,6 +54,41 @@ def prod {cap : Nat} (ql qr : Nat) : Nat → Nat → Nat → Nat → F →
         prod ql qr fuel (i * 2) l mid pending data lazy *
           prod ql qr fuel (i * 2 + 1) mid r pending data lazy
 
+def maxRight {cap : Nat} (sz ql : Nat) (p : M → Bool) :
+    Nat → Nat → Nat → Nat → F → M →
+    Vector M (cap * 2) → Vector F (cap * 2) → Option Nat × M
+  | 0, _, l, _, _, acc, _, _ => (some l, acc)
+  | fuel + 1, i, l, r, pending, acc, data, lazy =>
+      if r ≤ ql || sz ≤ l then (none, acc)
+      else
+        let next := acc * (pending • data.getD i 1)
+        if ql ≤ l && r ≤ sz && p next then (none, next)
+        else if l + 1 ≥ r then (some l, acc)
+        else
+          let mid := l + (r - l) / 2
+          let pending := pending * lazy.getD i 1
+          match maxRight sz ql p fuel (i * 2) l mid pending acc data lazy with
+          | (some answer, acc) => (some answer, acc)
+          | (none, acc) =>
+              maxRight sz ql p fuel (i * 2 + 1) mid r pending acc data lazy
+
+def minLeft {cap : Nat} (sz qr : Nat) (p : M → Bool) :
+    Nat → Nat → Nat → Nat → F → M →
+    Vector M (cap * 2) → Vector F (cap * 2) → Option Nat × M
+  | 0, _, _, r, _, acc, _, _ => (some r, acc)
+  | fuel + 1, i, l, r, pending, acc, data, lazy =>
+      if qr ≤ l || sz ≤ l then (none, acc)
+      else
+        let next := (pending • data.getD i 1) * acc
+        if r ≤ qr && r ≤ sz && p next then (none, next)
+        else if l + 1 ≥ r then (some r, acc)
+        else
+          let mid := l + (r - l) / 2
+          let pending := pending * lazy.getD i 1
+          match minLeft sz qr p fuel (i * 2 + 1) mid r pending acc data lazy with
+          | (some answer, acc) => (some answer, acc)
+          | (none, acc) => minLeft sz qr p fuel (i * 2) l mid pending acc data lazy
+
 end Impl
 
 def ofArray (xs : Array M) : LazySegTree M F :=
@@ -81,14 +116,14 @@ def apply (self : LazySegTree M F) (i : Fin self.sz) (f : F) : LazySegTree M F :
 /-- Product of the entire array. -/
 def allProd (self : LazySegTree M F) : M := self.data.getD 1 1
 
-/-- Largest `r` such that `p (prod l r)` remains true. Runs in `O(log² n)`. -/
+/-- Largest `r` such that `p (prod l r)` remains true. Runs in `O(log n)` when
+`p` is monotone and `p 1 = true`. -/
 def maxRight (self : LazySegTree M F) (l : Fin (self.sz + 1)) (p : M → Bool) : Nat :=
-  bisectMaxBelow (self.sz + 1) fun r =>
-    if r.val ≤ l.val then true else p (self.prod l r)
+  (Impl.maxRight self.sz l p self.cap 1 0 self.cap 1 1 self.data self.lazy).1.getD self.sz
 
-/-- Smallest `l` such that `p (prod l r)` is true. Runs in `O(log² n)`. -/
+/-- Smallest `l` such that `p (prod l r)` is true. Runs in `O(log n)` when
+`p` is monotone and `p 1 = true`. -/
 def minLeft (self : LazySegTree M F) (r : Fin (self.sz + 1)) (p : M → Bool) : Nat :=
-  bisectMinBelow (r.val + 1) fun l =>
-    if h : l.val < self.sz + 1 then p (self.prod ⟨l, h⟩ r) else true
+  (Impl.minLeft self.sz r p self.cap 1 0 self.cap 1 1 self.data self.lazy).1.getD 0
 
 end LazySegTree

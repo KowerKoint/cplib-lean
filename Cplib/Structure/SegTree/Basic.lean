@@ -1,5 +1,4 @@
 import Cplib.Util.Number
-import Cplib.Typical.Bisect.Basic
 
 structure SegTree (M : Type) where
   sz : Nat
@@ -46,6 +45,40 @@ def prod (self : SegTree M) (i l r ql qr : Nat) : M :=
     else if qr ≤ m then prod self (i * 2) l m ql qr
     else if m ≤ ql then prod self (i * 2 + 1) m r ql qr
     else prod self (i * 2) l m ql m * prod self (i * 2 + 1) m r m qr
+
+/-- Search `[ql, sz)` from left to right, skipping every subtree whose product can
+be appended to `acc` while preserving `p`. -/
+def maxRight (self : SegTree M) (p : M → Bool) (ql : Nat) :
+    Nat → Nat → Nat → Nat → M → Option Nat × M
+  | 0, _, l, _, acc => (some l, acc)
+  | fuel + 1, i, l, r, acc =>
+      if r ≤ ql || self.sz ≤ l then (none, acc)
+      else
+        let next := acc * self.data.getD i 1
+        if ql ≤ l && r ≤ self.sz && p next then (none, next)
+        else if l + 1 ≥ r then (some l, acc)
+        else
+          let mid := l + (r - l) / 2
+          match maxRight self p ql fuel (i * 2) l mid acc with
+          | (some answer, acc) => (some answer, acc)
+          | (none, acc) => maxRight self p ql fuel (i * 2 + 1) mid r acc
+
+/-- Search `[0, qr)` from right to left, skipping every subtree whose product can
+be prepended to `acc` while preserving `p`. -/
+def minLeft (self : SegTree M) (p : M → Bool) (qr : Nat) :
+    Nat → Nat → Nat → Nat → M → Option Nat × M
+  | 0, _, _, r, acc => (some r, acc)
+  | fuel + 1, i, l, r, acc =>
+      if qr ≤ l || self.sz ≤ l then (none, acc)
+      else
+        let next := self.data.getD i 1 * acc
+        if r ≤ qr && r ≤ self.sz && p next then (none, next)
+        else if l + 1 ≥ r then (some r, acc)
+        else
+          let mid := l + (r - l) / 2
+          match minLeft self p qr fuel (i * 2 + 1) mid r acc with
+          | (some answer, acc) => (some answer, acc)
+          | (none, acc) => minLeft self p qr fuel (i * 2) l mid acc
 end Impl
 
 def ofArray (a : Array M) : SegTree M :=
@@ -95,13 +128,13 @@ def prod! (self : SegTree M) (l r : Nat) : M :=
 /-- Product of the entire array. -/
 def allProd (self : SegTree M) : M := self.data.getD 1 1
 
-/-- Largest `r` such that `p (prod l r)` remains true. Runs in `O(log² n)`. -/
+/-- Largest `r` such that `p (prod l r)` remains true. Runs in `O(log n)` when
+`p` is monotone and `p 1 = true`. -/
 def maxRight (self : SegTree M) (l : Fin (self.sz + 1)) (p : M → Bool) : Nat :=
-  bisectMaxBelow (self.sz + 1) fun r =>
-    if r.val ≤ l.val then true else p (self.prod l r)
+  (Impl.maxRight self p l self.cap 1 0 self.cap 1).1.getD self.sz
 
-/-- Smallest `l` such that `p (prod l r)` is true. Runs in `O(log² n)`. -/
+/-- Smallest `l` such that `p (prod l r)` is true. Runs in `O(log n)` when
+`p` is monotone and `p 1 = true`. -/
 def minLeft (self : SegTree M) (r : Fin (self.sz + 1)) (p : M → Bool) : Nat :=
-  bisectMinBelow (r.val + 1) fun l =>
-    if h : l.val < self.sz + 1 then p (self.prod ⟨l, h⟩ r) else true
+  (Impl.minLeft self p r self.cap 1 0 self.cap 1).1.getD 0
 end SegTree

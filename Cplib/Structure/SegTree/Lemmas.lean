@@ -588,7 +588,9 @@ theorem prod_eq_range_prod [Monoid M] (self : SegTree M) (hvalid : Valid self)
 example :
     let tree := ofArray #[2, 3, 5, 7]
     tree.allProd == 210 && tree.maxRight 0 (· ≤ 30) == 3 &&
-      tree.minLeft 4 (· ≤ 35) == 2 := by
+      tree.minLeft 4 (· ≤ 35) == 2 && tree.maxRight 1 (· ≤ 15) == 3 &&
+      tree.minLeft 3 (· ≤ 15) == 1 && tree.maxRight 4 (· ≤ 0) == 4 &&
+      tree.minLeft 0 (· ≤ 0) == 0 := by
   native_decide
 
 end SegTree

@@ -39,7 +39,9 @@ example :
     tree.prod 0 5 == ⟨54, 5⟩ && tree.prod 2 4 == ⟨33, 2⟩ &&
       tree.get ⟨2, by decide⟩ == ⟨16, 1⟩ && tree.allProd == ⟨54, 5⟩ &&
       tree.maxRight 0 (fun x => x.sum ≤ 30) == 3 &&
-      tree.minLeft 5 (fun x => x.sum ≤ 30) == 3 := by
+      tree.minLeft 5 (fun x => x.sum ≤ 30) == 3 &&
+      tree.maxRight 1 (fun x => x.sum ≤ 28) == 3 &&
+      tree.minLeft 4 (fun x => x.sum ≤ 33) == 2 := by
   native_decide
 
 end LazySegTree
