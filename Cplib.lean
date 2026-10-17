@@ -1,6 +1,5 @@
 -- Utilities
 import Cplib.Util.Number
-import Cplib.Util.Container
 
 -- Typical techniques
 import Cplib.Typical

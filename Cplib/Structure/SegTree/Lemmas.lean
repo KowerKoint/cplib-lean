@@ -1,5 +1,5 @@
 import Cplib.Structure.SegTree.Basic
-import Cplib.Util.Container.Lemmas
+import Cplib.Util.Vector.Lemmas
 import Mathlib.Data.List.FinRange
 import Mathlib.Tactic
 

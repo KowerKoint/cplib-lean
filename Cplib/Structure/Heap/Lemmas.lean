@@ -1,5 +1,5 @@
 import Cplib.Structure.Heap.Basic
-import Cplib.Util.Container.Lemmas
+import Cplib.Util.Vector.Lemmas
 import Mathlib.Tactic
 
 /-!
