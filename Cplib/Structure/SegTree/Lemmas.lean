@@ -585,4 +585,10 @@ theorem prod_eq_range_prod [Monoid M] (self : SegTree M) (hvalid : Valid self)
   have hr := r.isLt
   omega
 
+example :
+    let tree := ofArray #[2, 3, 5, 7]
+    tree.allProd == 210 && tree.maxRight 0 (· ≤ 30) == 3 &&
+      tree.minLeft 4 (· ≤ 35) == 2 := by
+  native_decide
+
 end SegTree

@@ -70,4 +70,25 @@ def applyRange (self : LazySegTree M F) (l r : Fin (self.sz + 1)) (f : F) :
 def prod (self : LazySegTree M F) (l r : Fin (self.sz + 1)) : M :=
   Impl.prod l r self.cap 1 0 self.cap 1 self.data self.lazy
 
+/-- Value at one position. -/
+def get (self : LazySegTree M F) (i : Fin self.sz) : M :=
+  self.prod ⟨i, by omega⟩ ⟨i + 1, by omega⟩
+
+/-- Apply an action to one position. -/
+def apply (self : LazySegTree M F) (i : Fin self.sz) (f : F) : LazySegTree M F :=
+  self.applyRange ⟨i, by omega⟩ ⟨i + 1, by omega⟩ f
+
+/-- Product of the entire array. -/
+def allProd (self : LazySegTree M F) : M := self.data.getD 1 1
+
+/-- Largest `r` such that `p (prod l r)` remains true. Runs in `O(log² n)`. -/
+def maxRight (self : LazySegTree M F) (l : Fin (self.sz + 1)) (p : M → Bool) : Nat :=
+  bisectMaxBelow (self.sz + 1) fun r =>
+    if r.val ≤ l.val then true else p (self.prod l r)
+
+/-- Smallest `l` such that `p (prod l r)` is true. Runs in `O(log² n)`. -/
+def minLeft (self : LazySegTree M F) (r : Fin (self.sz + 1)) (p : M → Bool) : Nat :=
+  bisectMinBelow (r.val + 1) fun l =>
+    if h : l.val < self.sz + 1 then p (self.prod ⟨l, h⟩ r) else true
+
 end LazySegTree

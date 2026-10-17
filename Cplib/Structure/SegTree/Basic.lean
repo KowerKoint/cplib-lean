@@ -1,4 +1,5 @@
 import Cplib.Util.Number
+import Cplib.Typical.Bisect.Basic
 
 structure SegTree (M : Type) where
   sz : Nat
@@ -90,4 +91,17 @@ def prod! (self : SegTree M) (l r : Nat) : M :=
     self.prod ⟨l, h.left⟩ ⟨r, h.right⟩
   else
     1
+
+/-- Product of the entire array. -/
+def allProd (self : SegTree M) : M := self.data.getD 1 1
+
+/-- Largest `r` such that `p (prod l r)` remains true. Runs in `O(log² n)`. -/
+def maxRight (self : SegTree M) (l : Fin (self.sz + 1)) (p : M → Bool) : Nat :=
+  bisectMaxBelow (self.sz + 1) fun r =>
+    if r.val ≤ l.val then true else p (self.prod l r)
+
+/-- Smallest `l` such that `p (prod l r)` is true. Runs in `O(log² n)`. -/
+def minLeft (self : SegTree M) (r : Fin (self.sz + 1)) (p : M → Bool) : Nat :=
+  bisectMinBelow (r.val + 1) fun l =>
+    if h : l.val < self.sz + 1 then p (self.prod ⟨l, h⟩ r) else true
 end SegTree

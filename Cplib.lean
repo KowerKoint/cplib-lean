@@ -8,6 +8,7 @@ import Cplib.Typical
 -- Number theory
 import Cplib.NumberTheory
 import Cplib.String
+import Cplib.Convolution
 
 -- Graph algorithms
 import Cplib.Graph

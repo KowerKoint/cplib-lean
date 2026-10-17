@@ -1,4 +1,4 @@
-import Mathlib.Algebra.Group.Even
+import Init.Omega
 
 /-- `l` と `r` の間 (両端を除く) にある中点を、`l < v < r` の証明込みで保持する。 -/
 structure Mid (l r : Nat) where
@@ -47,18 +47,6 @@ where
   decreasing_by
     simp_wf
     apply nextPowerOfTwo_dec <;> assumption
-
--- 1より大きい2冪は偶数
-theorem IsPowerOfTwo.even_of_one_lt (hpow : n.isPowerOfTwo) (hn : 1 < n) :
-    Even n := by
-  simp [Nat.isPowerOfTwo] at hpow
-  rcases hpow with ⟨k, rfl⟩
-  cases k with
-  | zero =>
-    simp at hn
-  | succ k =>
-    rw [Nat.pow_succ]
-    exact ⟨2 ^ k, by omega⟩
 
 /-- `l + 1 < r` のとき、オーバーフローしない中点 `l + (r - l) / 2` を返す。 -/
 def midpoint(l r : Nat) (hlr : l + 1 < r) : Mid l r :=
