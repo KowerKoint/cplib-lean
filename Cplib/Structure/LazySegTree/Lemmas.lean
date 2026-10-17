@@ -59,6 +59,51 @@ private theorem Impl.applyNode_internalAt_of_away [Monoid M] [Monoid F]
     Impl.getD_setD_of_ne _ _ _ hright.symm]
   exact hvalid
 
+private theorem Impl.push_data_root [Mul M] [One M] [Mul F] [One F] [SMul F M]
+    {cap i : Nat} (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (hi0 : i ≠ 0) :
+    (Impl.push data lazy i).1.getD i 1 = data.getD i 1 := by
+  simp only [Impl.push]
+  rw [Impl.getD_setD_of_ne _ _ _ (by omega),
+    Impl.getD_setD_of_ne _ _ _ (by omega)]
+
+private theorem Impl.push_data_left [Mul M] [One M] [Mul F] [One F] [SMul F M]
+    {cap i : Nat} (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (hi : i < cap) :
+    (Impl.push data lazy i).1.getD (i * 2) 1 =
+      lazy.getD i 1 • data.getD (i * 2) 1 := by
+  simp only [Impl.push]
+  rw [Impl.getD_setD_of_ne _ _ _ (by omega),
+    Impl.getD_setD_self _ _ _ (by omega)]
+
+private theorem Impl.push_data_right [Mul M] [One M] [Mul F] [One F] [SMul F M]
+    {cap i : Nat} (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (hi : i < cap) :
+    (Impl.push data lazy i).1.getD (i * 2 + 1) 1 =
+      lazy.getD i 1 • data.getD (i * 2 + 1) 1 := by
+  simp only [Impl.push]
+  rw [Impl.getD_setD_self _ _ _ (by omega)]
+
+private theorem Impl.push_lazy_root [Mul M] [One M] [Mul F] [One F] [SMul F M]
+    {cap i : Nat} (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (hi : i < cap) :
+    (Impl.push data lazy i).2.getD i 1 = 1 := by
+  simp only [Impl.push]
+  rw [Impl.getD_setD_self _ _ _ (by omega)]
+
+private theorem Impl.push_internalAt [Monoid M] [Monoid F]
+    [MulDistribMulAction F M] {cap i : Nat}
+    (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (hi0 : i ≠ 0) (hi : i < cap) (hvalid : internalAt data lazy i) :
+    let result := Impl.push data lazy i
+    internalAt result.1 result.2 i := by
+  dsimp only
+  unfold internalAt
+  rw [Impl.push_data_root data lazy hi0, Impl.push_lazy_root data lazy hi,
+    Impl.push_data_left data lazy hi, Impl.push_data_right data lazy hi]
+  rw [one_smul, ← MulDistribMulAction.smul_mul]
+  exact hvalid
+
 @[simp] theorem ofArray_sz [Mul M] [One M] [One F] (xs : Array M) :
     (ofArray (F := F) xs).sz = xs.size := rfl
 

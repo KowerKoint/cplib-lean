@@ -24,9 +24,13 @@ def applyNode {cap : Nat} (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2)
 def push {cap : Nat} (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
     (i : Nat) : Vector M (cap * 2) × Vector F (cap * 2) :=
   let f := lazy.getD i 1
-  let (data, lazy) := applyNode data lazy (i * 2) f
-  let (data, lazy) := applyNode data lazy (i * 2 + 1) f
-  (data, setD lazy i 1)
+  let left := i * 2
+  let right := left + 1
+  let data := setD (setD data left (f • data.getD left 1))
+    right (f • data.getD right 1)
+  let lazy := setD (setD (setD lazy left (f * lazy.getD left 1))
+    right (f * lazy.getD right 1)) i 1
+  (data, lazy)
 
 def applyRange {cap : Nat} (f : F) (ql qr : Nat) : Nat → Nat → Nat → Nat →
     Vector M (cap * 2) → Vector F (cap * 2) →
