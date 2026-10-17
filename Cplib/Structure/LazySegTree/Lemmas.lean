@@ -5,6 +5,60 @@ import Mathlib.Tactic
 namespace LazySegTree
 variable {M F : Type}
 
+@[simp] private theorem Impl.getD_setD_self {α : Type} {n i : Nat}
+    (xs : Vector α n) (x default : α) (hi : i < n) :
+    (Impl.setD xs i x).getD i default = x := by
+  simp [Impl.setD, hi, Vector.getD, Array.getD]
+
+@[simp] private theorem Impl.getD_setD_of_ne {α : Type} {n i j : Nat}
+    (xs : Vector α n) (x default : α) (hij : i ≠ j) :
+    (Impl.setD xs i x).getD j default = xs.getD j default := by
+  unfold Impl.setD
+  split
+  · rename_i hi
+    by_cases hj : j < n
+    · unfold Vector.getD Array.getD
+      simp only [Vector.size_toArray, hj, dite_true]
+      exact Vector.getElem_set_ne hi hj hij
+    · unfold Vector.getD Array.getD
+      simp [hj]
+  · rfl
+
+private def internalAt [Mul M] [One M] [Mul F] [One F] [SMul F M]
+    {cap : Nat} (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
+    (i : Nat) : Prop :=
+  data.getD i 1 = lazy.getD i 1 •
+    (data.getD (i * 2) 1 * data.getD (i * 2 + 1) 1)
+
+private theorem Impl.applyNode_internalAt [Monoid M] [Monoid F]
+    [MulDistribMulAction F M] {cap i : Nat}
+    (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2)) (f : F)
+    (hi0 : i ≠ 0) (hi : i < cap) (hvalid : internalAt data lazy i) :
+    let result := Impl.applyNode data lazy i f
+    internalAt result.1 result.2 i := by
+  simp only [Impl.applyNode]
+  unfold internalAt
+  rw [Impl.getD_setD_self _ _ _ (by omega),
+    Impl.getD_setD_self _ _ _ (by omega),
+    Impl.getD_setD_of_ne _ _ _ (by omega : i ≠ i * 2),
+    Impl.getD_setD_of_ne _ _ _ (by omega : i ≠ i * 2 + 1)]
+  rw [mul_smul, hvalid, MulDistribMulAction.smul_mul]
+
+private theorem Impl.applyNode_internalAt_of_away [Monoid M] [Monoid F]
+    [MulDistribMulAction F M] {cap i j : Nat}
+    (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2)) (f : F)
+    (hji : j ≠ i) (hleft : j * 2 ≠ i) (hright : j * 2 + 1 ≠ i)
+    (hvalid : internalAt data lazy j) :
+    let result := Impl.applyNode data lazy i f
+    internalAt result.1 result.2 j := by
+  simp only [Impl.applyNode]
+  unfold internalAt
+  rw [Impl.getD_setD_of_ne _ _ _ hji.symm,
+    Impl.getD_setD_of_ne _ _ _ hji.symm,
+    Impl.getD_setD_of_ne _ _ _ hleft.symm,
+    Impl.getD_setD_of_ne _ _ _ hright.symm]
+  exact hvalid
+
 @[simp] theorem ofArray_sz [Mul M] [One M] [One F] (xs : Array M) :
     (ofArray (F := F) xs).sz = xs.size := rfl
 
@@ -55,6 +109,27 @@ def Valid [Monoid M] [Monoid F] [MulDistribMulAction F M]
     self.data[self.cap + i.val]'(by
       have hi := i.isLt
       omega) = 1)
+
+theorem Valid.internalAt [Monoid M] [Monoid F] [MulDistribMulAction F M]
+    {self : LazySegTree M F} (hself : self.Valid)
+    (i : Nat) (hi0 : i ≠ 0) (hi : i < self.cap) :
+    internalAt self.data self.lazy i := by
+  have h := hself.1 ⟨i, hi⟩ hi0
+  unfold LazySegTree.internalAt Vector.getD Array.getD
+  simp only [Vector.size_toArray]
+  rw [dif_pos (by omega), dif_pos (by omega), dif_pos (by omega),
+    dif_pos (by omega)]
+  exact h
+
+theorem Valid.padding [Monoid M] [Monoid F] [MulDistribMulAction F M]
+    {self : LazySegTree M F} (hself : self.Valid)
+    (i : Nat) (hsi : self.sz ≤ i) (hi : i < self.cap) :
+    self.data.getD (self.cap + i) 1 = 1 := by
+  have h := hself.2 ⟨i, hi⟩ hsi
+  unfold Vector.getD Array.getD
+  simp only [Vector.size_toArray]
+  rw [dif_pos (by omega)]
+  exact h
 
 theorem ofArray_Valid [Monoid M] [Monoid F] [MulDistribMulAction F M]
     (xs : Array M) : Valid (ofArray (F := F) xs) := by
