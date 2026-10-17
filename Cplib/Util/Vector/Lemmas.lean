@@ -1,4 +1,4 @@
-import Mathlib.Tactic
+import Lean.Elab.Tactic.Omega
 
 namespace Vector
 
