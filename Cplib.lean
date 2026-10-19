@@ -9,6 +9,9 @@ import Cplib.NumberTheory
 import Cplib.String
 import Cplib.Convolution
 
+-- Tree algorithms
+import Cplib.Tree
+
 -- Graph algorithms
 import Cplib.Graph
 
