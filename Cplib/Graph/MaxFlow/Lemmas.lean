@@ -1,6 +1,8 @@
 import Cplib.Graph.MaxFlow.Basic
 import Mathlib.Tactic
 
+namespace Cplib
+
 namespace MaxFlow
 
 @[simp] theorem empty_edges (n : Nat) : (empty n).edges = #[] := rfl
@@ -45,3 +47,5 @@ private def changedEdgeResult : Option (EdgeInfo 2) :=
 example : changedEdgeResult = some ⟨0, 1, 7, 3⟩ := by native_decide
 
 end MaxFlow
+
+end Cplib

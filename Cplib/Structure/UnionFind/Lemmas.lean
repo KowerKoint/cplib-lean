@@ -3,6 +3,8 @@ import Mathlib.Data.List.FinRange
 import Mathlib.Data.Vector.Basic
 import Mathlib.Tactic
 
+namespace Cplib
+
 namespace UnionFind
 
 theorem Impl.leaderFuel_componentSize (fuel : Nat) (self : UnionFind n) (a : Fin n) :
@@ -55,3 +57,5 @@ example :
   native_decide
 
 end UnionFind
+
+end Cplib

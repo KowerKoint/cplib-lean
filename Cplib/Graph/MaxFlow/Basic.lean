@@ -1,3 +1,5 @@
+
+namespace Cplib
 /-- A residual edge used internally by Dinic's algorithm. -/
 structure MaxFlow.ResidualEdge (n : Nat) where
   target : Fin n
@@ -159,3 +161,5 @@ def minCut (self : MaxFlow n) (source : Fin n) : Vector Bool n :=
   Vector.ofFn fun i => levels.getD i n ≠ n
 
 end MaxFlow
+
+end Cplib

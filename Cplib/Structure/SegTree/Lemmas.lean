@@ -3,6 +3,8 @@ import Cplib.Util.Vector.Lemmas
 import Mathlib.Data.List.FinRange
 import Mathlib.Tactic
 
+namespace Cplib
+
 namespace SegTree
 
 private def buildData [Mul M] {cap : Nat} (xs : List (Fin cap))
@@ -594,3 +596,5 @@ example :
   native_decide
 
 end SegTree
+
+end Cplib

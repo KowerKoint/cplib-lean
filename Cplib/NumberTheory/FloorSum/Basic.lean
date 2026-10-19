@@ -1,3 +1,5 @@
+
+namespace Cplib
 namespace FloorSum
 
 namespace Impl
@@ -26,3 +28,5 @@ def floorSum (n m a b : Nat) : Nat :=
   Impl.floorSumFuel (m + 1) n m a b
 
 end FloorSum
+
+end Cplib

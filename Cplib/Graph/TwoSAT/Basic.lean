@@ -1,6 +1,8 @@
 import Cplib.Graph.SCC.Basic
 import Init.Omega
 
+namespace Cplib
+
 /-- A persistent 2-SAT implication graph for `n` Boolean variables. -/
 structure TwoSAT (n : Nat) where
   graph : Vector (List Nat) (n * 2)
@@ -49,3 +51,5 @@ def solve (self : TwoSAT n) : Option (Vector Bool n) :=
       ids[(Impl.literal i false).val]! < ids[(Impl.literal i true).val]!)
 
 end TwoSAT
+
+end Cplib

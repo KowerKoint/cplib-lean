@@ -2,6 +2,8 @@ import Cplib.Structure.LazySegTree.Basic
 import Cplib.Structure.SegTree.Lemmas
 import Mathlib.Tactic
 
+namespace Cplib
+
 namespace LazySegTree
 variable {M F : Type}
 
@@ -722,3 +724,5 @@ example :
   native_decide
 
 end LazySegTree
+
+end Cplib

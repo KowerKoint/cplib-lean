@@ -1,5 +1,7 @@
 import Cplib.NumberTheory.Modular.Basic
 
+namespace Cplib
+
 namespace Convolution
 
 namespace Impl
@@ -54,3 +56,5 @@ def convolution (xs ys : Array Nat) : Array Nat :=
   convolutionMod 998244353 3 xs ys
 
 end Convolution
+
+end Cplib

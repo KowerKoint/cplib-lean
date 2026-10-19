@@ -1,3 +1,5 @@
+
+namespace Cplib
 namespace SuffixArray
 
 namespace Impl
@@ -72,3 +74,5 @@ def suffixArray [Ord α] (xs : Array α) : Array Nat :=
   (Impl.loop xs xs.size 1 order ranks).toArray.map Fin.val
 
 end SuffixArray
+
+end Cplib

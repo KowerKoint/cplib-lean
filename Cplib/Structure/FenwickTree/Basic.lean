@@ -1,3 +1,5 @@
+
+namespace Cplib
 /-- Array-backed Fenwick tree for prefix sums. -/
 structure FenwickTree (α : Type) (n : Nat) where
   data : Vector α n
@@ -50,3 +52,5 @@ def ofArray [Add α] [Zero α] (xs : Array α) : FenwickTree α xs.size :=
   (List.finRange xs.size).foldl (fun tree i => tree.add i xs[i]) (empty xs.size)
 
 end FenwickTree
+
+end Cplib

@@ -1,3 +1,5 @@
+
+namespace Cplib
 /-- Persistent union-find (disjoint-set union) with path compression and union by size. -/
 structure UnionFind (n : Nat) where
   parent : Vector (Fin n) n
@@ -80,3 +82,5 @@ def groups (self : UnionFind n) : Array (Array Nat) × UnionFind n :=
   (groups.map (·.2), self)
 
 end UnionFind
+
+end Cplib

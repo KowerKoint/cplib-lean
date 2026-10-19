@@ -2,6 +2,8 @@ import Cplib.Structure.Heap.Basic
 import Cplib.Util.Vector.Lemmas
 import Mathlib.Tactic
 
+namespace Cplib
+
 /-!
 # Structure.Heap.Lemmas
 
@@ -229,3 +231,5 @@ example : drainNat (ofArray #[5, 1, 4, 1, 3]) = [1, 1, 3, 4, 5] := by
   native_decide
 
 end Heap
+
+end Cplib

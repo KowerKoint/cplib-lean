@@ -1,5 +1,7 @@
 import Cplib.String.SuffixArray.Basic
 
+namespace Cplib
+
 namespace LCPArray
 
 namespace Impl
@@ -49,3 +51,5 @@ def suffixAndLCP [Ord α] [BEq α] (xs : Array α) : Array Nat × Array Nat :=
   (sa, lcpArray xs sa)
 
 end LCPArray
+
+end Cplib

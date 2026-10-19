@@ -1,5 +1,7 @@
 import Cplib.Structure.Heap.Basic
 
+namespace Cplib
+
 structure MinCostFlow.ResidualEdge (n : Nat) where
   target : Fin n
   reverse : Nat
@@ -165,3 +167,5 @@ def flow (self : MinCostFlow n) (source sink : Fin n) :
   self.flowUpTo source sink self.totalCapacity
 
 end MinCostFlow
+
+end Cplib

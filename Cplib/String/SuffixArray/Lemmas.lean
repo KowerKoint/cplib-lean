@@ -2,6 +2,8 @@ import Cplib.String.SuffixArray.Basic
 import Mathlib.Data.List.FinRange
 import Mathlib.Tactic
 
+namespace Cplib
+
 namespace SuffixArray
 
 example : suffixArray "abracadabra".toList.toArray = #[10, 7, 0, 3, 5, 8, 1, 4, 6, 9, 2] := by
@@ -22,3 +24,5 @@ example : suffixArray (Array.replicate 128 0) = (Array.range 128).reverse := by
   native_decide
 
 end SuffixArray
+
+end Cplib

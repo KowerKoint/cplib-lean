@@ -1,6 +1,8 @@
 import Cplib.NumberTheory.FloorSum.Basic
 import Mathlib.Tactic
 
+namespace Cplib
+
 namespace FloorSum
 
 @[simp] theorem floorSum_zero_modulus (n a b : Nat) :
@@ -23,3 +25,5 @@ example : floorSum 1_000_000_000 998244353 123456789 987654321 =
     61836958798006594 := by native_decide
 
 end FloorSum
+
+end Cplib

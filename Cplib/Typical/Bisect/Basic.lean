@@ -1,5 +1,7 @@
 import Cplib.Util.Number.Basic
 
+namespace Cplib
+
 /-- `p` が単調 (true から false へ一度だけ変化) という前提で、`p` を満たす最大の値を探す。 -/
 def bisectMax' (ok ng : Nat) (p : Nat → Bool) : Nat :=
   if _h : ok + 1 < ng then
@@ -37,7 +39,11 @@ def bisectMinBelow (ok : Nat) (p : Fin ok → Bool) : Nat :=
     else if hx : x.pred < ok then p ⟨x.pred, hx⟩ else true
   bisectMin' 0 ok.succ p' |>.pred
 
+end Cplib
+
 namespace Array
+
+open Cplib
 
 /-- ソート済み配列 `xs` における `a` の下限位置 (`a` 以上が現れる最小添字)。 -/
 def lowerBound [Ord α] (xs : Array α) (a : α) :=

@@ -1,3 +1,5 @@
+
+namespace Cplib
 /-!
 # Structure.Heap.Basic
 
@@ -86,3 +88,5 @@ def pop! (heap : Heap α) : Heap α :=
   else panic! "Heap.pop! : heap is empty"
 
 end Heap
+
+end Cplib

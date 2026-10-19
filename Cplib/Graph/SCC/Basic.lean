@@ -1,3 +1,5 @@
+
+namespace Cplib
 /-!
 # Graph.SCC.Basic
 
@@ -56,3 +58,5 @@ def scc (n : Nat) (g : Array (List Nat)) : List (List Nat) :=
 end SCC
 
 export SCC (scc)
+
+end Cplib

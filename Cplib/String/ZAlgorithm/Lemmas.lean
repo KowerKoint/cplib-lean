@@ -1,6 +1,8 @@
 import Cplib.String.ZAlgorithm.Basic
 import Mathlib.Tactic
 
+namespace Cplib
+
 namespace ZAlgorithm
 
 @[simp] theorem zAlgorithm_size [BEq α] (xs : Array α) :
@@ -21,3 +23,5 @@ example : zAlgorithm "aabcaabxaaaz".toList.toArray =
   native_decide
 
 end ZAlgorithm
+
+end Cplib

@@ -37,4 +37,7 @@ Lean 4.22.0 (AtCoder と同一) でビルドできるモジュールをここに
 実装だけを軽く使いたい場合 (AtCoder 提出など) は `...Basic` を直接 import すると、
 `Lemmas` (および `Mathlib`) を引かずにビルドできる。
 
+ライブラリ固有の公開 API は `Cplib` 名前空間に置く。既存型への拡張は、
+`Nat.midpoint` や `Array.lowerBound` のようにその型の名前空間に置く。
+
 -/

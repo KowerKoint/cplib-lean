@@ -1,5 +1,7 @@
 import Cplib.Structure.SegTree.Basic
 
+namespace Cplib
+
 structure LazySegTree (M F : Type) where
   sz : Nat
   cap : Nat
@@ -131,3 +133,5 @@ def minLeft (self : LazySegTree M F) (r : Fin (self.sz + 1)) (p : M → Bool) : 
   (Impl.minLeft self.sz r p self.cap 1 0 self.cap 1 1 self.data self.lazy).1.getD 0
 
 end LazySegTree
+
+end Cplib

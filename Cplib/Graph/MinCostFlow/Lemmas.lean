@@ -1,6 +1,8 @@
 import Cplib.Graph.MinCostFlow.Basic
 import Mathlib.Tactic
 
+namespace Cplib
+
 namespace MinCostFlow
 
 @[simp] theorem empty_edges (n : Nat) : (empty n).edges = #[] := rfl
@@ -35,3 +37,5 @@ private def continuationResult : (Nat × Int) × (Nat × Int) :=
 example : continuationResult = ((2, 5), (1, 4)) := by native_decide
 
 end MinCostFlow
+
+end Cplib

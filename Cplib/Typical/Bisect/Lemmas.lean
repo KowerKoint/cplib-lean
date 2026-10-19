@@ -1,6 +1,8 @@
 import Cplib.Typical.Bisect.Basic
 import Mathlib.Tactic
 
+namespace Cplib
+
 theorem bisectMax'_bounds (hokng : ok < ng) (p : Nat → Bool) :
     ok ≤ bisectMax' ok ng p ∧ bisectMax' ok ng p < ng := by
   refine (bisectMax'.induct p (motive := fun l r =>
@@ -194,7 +196,11 @@ theorem bisectMinBelow_spec (p : Fin ok → Bool)
       rw [if_neg hrawle] at hiSpec
       simpa [p'] using hiSpec
 
+end Cplib
+
 namespace Array
+
+open Cplib
 
 theorem lowerBound_le_size [Ord α] (xs : Array α) (a : α) :
     xs.lowerBound a ≤ xs.size :=

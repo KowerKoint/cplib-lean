@@ -1,6 +1,8 @@
 import Cplib.NumberTheory.Modular.Basic
 import Mathlib.Tactic
 
+namespace Cplib
+
 namespace NumberTheory
 
 @[simp] theorem powMod_modulus_zero (a e : Nat) : powMod a e 0 = 0 := rfl
@@ -24,3 +26,5 @@ example : crt #[(1, 2), (0, 4)] = none := by native_decide
 example : crt #[(-1, 5), (1, 3)] = some (4, 15) := by native_decide
 
 end NumberTheory
+
+end Cplib

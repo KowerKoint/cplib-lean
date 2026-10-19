@@ -3,6 +3,8 @@ import Mathlib.Data.List.FinRange
 import Mathlib.Data.Vector.Basic
 import Mathlib.Tactic
 
+namespace Cplib
+
 namespace FenwickTree
 
 private theorem Impl.prefixFuel_replicate [AddMonoid α] (fuel i n : Nat) :
@@ -40,3 +42,5 @@ example :
   native_decide
 
 end FenwickTree
+
+end Cplib

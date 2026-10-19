@@ -1,5 +1,7 @@
 import Cplib.Util.Number.Basic
 
+namespace Cplib
+
 structure SegTree (M : Type) where
   sz : Nat
   cap : Nat
@@ -138,3 +140,5 @@ def maxRight (self : SegTree M) (l : Fin (self.sz + 1)) (p : M → Bool) : Nat :
 def minLeft (self : SegTree M) (r : Fin (self.sz + 1)) (p : M → Bool) : Nat :=
   (Impl.minLeft self p r self.cap 1 0 self.cap 1).1.getD 0
 end SegTree
+
+end Cplib

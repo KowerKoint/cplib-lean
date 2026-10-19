@@ -1,6 +1,8 @@
 import Cplib.Convolution.Basic
 import Mathlib.Tactic
 
+namespace Cplib
+
 namespace Convolution
 
 def naive (modulus : Nat) (xs ys : Array Nat) : Array Nat :=
@@ -25,3 +27,5 @@ example :
   native_decide
 
 end Convolution
+
+end Cplib

@@ -1,5 +1,7 @@
 import Init.Omega
 
+namespace Cplib
+
 namespace ZAlgorithm
 
 namespace Impl
@@ -36,3 +38,5 @@ def zAlgorithm [BEq α] (xs : Array α) : Array Nat :=
   else #[]
 
 end ZAlgorithm
+
+end Cplib

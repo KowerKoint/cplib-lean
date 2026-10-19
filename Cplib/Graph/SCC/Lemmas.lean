@@ -1,6 +1,8 @@
 import Cplib.Graph.SCC.Basic
 import Mathlib.Tactic
 
+namespace Cplib
+
 /-!
 # Graph.SCC.Lemmas
 
@@ -52,3 +54,5 @@ example : scc 6 #[[1], [0, 2], [3], [2], [5], []] =
   native_decide
 
 end SCC
+
+end Cplib

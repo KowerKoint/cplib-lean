@@ -2,6 +2,8 @@ import Cplib.String.LCPArray.Basic
 import Mathlib.Data.List.FinRange
 import Mathlib.Tactic
 
+namespace Cplib
+
 namespace LCPArray
 
 private theorem Impl.loop_size [BEq α] (xs : Array α) (sa rank : Array Nat)
@@ -34,3 +36,5 @@ example : suffixAndLCP "aaaaa".toList.toArray =
   native_decide
 
 end LCPArray
+
+end Cplib

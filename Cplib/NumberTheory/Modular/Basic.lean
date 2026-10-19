@@ -1,5 +1,7 @@
 import Init.Omega
 
+namespace Cplib
+
 namespace NumberTheory
 
 namespace Impl
@@ -69,3 +71,5 @@ def crt (congruences : Array (Int × Nat)) : Option (Nat × Nat) :=
   congruences.foldlM Impl.crtCombine (0, 1)
 
 end NumberTheory
+
+end Cplib

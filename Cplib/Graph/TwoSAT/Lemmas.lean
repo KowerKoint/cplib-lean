@@ -1,6 +1,8 @@
 import Cplib.Graph.TwoSAT.Basic
 import Mathlib.Tactic
 
+namespace Cplib
+
 namespace TwoSAT
 
 @[simp] theorem solve_empty_zero : (empty 0).solve = some #v[] := by
@@ -22,3 +24,5 @@ example :
   native_decide
 
 end TwoSAT
+
+end Cplib
