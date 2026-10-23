@@ -62,24 +62,30 @@ def merge (self : UnionFind n) (a b : Fin n) : UnionFind n :=
 
 namespace Impl
 
-def collectGroups (vertices : List (Fin n)) (self : UnionFind n)
-    (groups : Array (Fin n × Array Nat)) : Array (Fin n × Array Nat) × UnionFind n :=
-  match vertices with
-  | [] => (groups, self)
-  | i :: vertices =>
-      let (root, self) := self.leader i
-      let groups :=
-        match groups.findIdx? (fun group => group.1 == root) with
-        | some j => groups.modify j (fun group => (group.1, group.2.push i.val))
-        | none => groups.push (root, #[i.val])
-      collectGroups vertices self groups
+/-- Bucket every vertex under its root.
+
+Buckets are indexed by the root itself, so this is `O(n α(n))` overall. `order`
+records each root the first time it is seen, which fixes the order of the
+returned components. -/
+def collectGroups (self : UnionFind n) :
+    Array (Fin n) × Vector (Array Nat) n × UnionFind n :=
+  Nat.fold n (fun i h (order, buckets, self) =>
+    let (root, self) := self.leader ⟨i, h⟩
+    if buckets[root].isEmpty then
+      (order.push root, buckets.set root #[i], self)
+    else
+      (order, buckets.set root (buckets[root].push i), self))
+    (#[], Vector.replicate n #[], self)
 
 end Impl
 
-/-- Components as arrays of vertices, together with the fully compressed state. -/
+/-- Components as arrays of vertices, together with the fully compressed state.
+
+Components appear in order of the first vertex belonging to each, and each
+component lists its vertices in increasing order. -/
 def groups (self : UnionFind n) : Array (Array Nat) × UnionFind n :=
-  let (groups, self) := Impl.collectGroups (List.finRange n) self #[]
-  (groups.map (·.2), self)
+  let (order, buckets, self) := Impl.collectGroups self
+  (order.map (buckets[·]), self)
 
 end UnionFind
 

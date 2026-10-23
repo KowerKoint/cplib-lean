@@ -48,6 +48,21 @@ private theorem leaderFuel_empty {n : Nat} (fuel : Nat) (i : Fin n) :
     (empty n).merge a a = empty n := by
   simp [merge]
 
+/-- 成分は、各根が初めて現れた頂点の順に並び、成分内は頂点番号の昇順。 -/
+example :
+    let uf := (empty 7).merge 1 3 |>.merge 5 1 |>.merge 4 6
+    uf.groups.1 = #[#[0], #[1, 3, 5], #[2], #[4, 6]] := by
+  native_decide
+
+example : (empty 4).groups.1 = #[#[0], #[1], #[2], #[3]] := by
+  native_decide
+
+/-- 根が成分の最小頂点とは限らない場合も、並びは最小頂点の順になる。 -/
+example :
+    let uf := (empty 6).merge 5 0 |>.merge 4 1 |>.merge 3 2
+    uf.groups.1 = #[#[0, 5], #[1, 4], #[2, 3]] := by
+  native_decide
+
 example :
     let uf := (empty 5).merge 0 1 |>.merge 3 4 |>.merge 1 4
     let (connected, uf) := uf.same 0 3
