@@ -52,6 +52,17 @@ def modifyDown (heap : Heap α) (idx : Fin heap.n) : Heap α :=
       · show heap.n - (idx.toNat * 2 + 2) < heap.n - idx.toNat; omega
     · -- 左子のみの場合: c1 = 2i+1。
       show heap.n - (idx.toNat * 2 + 1) < heap.n - idx.toNat; omega
+
+/-- 添字 `k - 1` から `0` へ向かって順に `modifyDown` を適用する。
+
+`k` に `n / 2` を渡すと全ての内部節点をボトムアップに整えることになり、
+ヒープ全体の構築が `O(n)` で済む。 -/
+def heapifyFrom : Heap α → Nat → Heap α
+  | heap, 0 => heap
+  | heap, k + 1 =>
+      if h : k < heap.n then heapifyFrom (modifyDown heap ⟨k, h⟩) k
+      else heapifyFrom heap k
+
 end Impl
 
 def empty (cmp : α → α → Ordering := by exact compare) : Heap α := ⟨0, Array.empty |>.toVector, cmp⟩
@@ -64,9 +75,12 @@ def add (heap : Heap α) (x : α) : Heap α :=
   let ndata := heap.data.push x
   Impl.modifyUp ⟨heap.n + 1, ndata, heap.cmp⟩ ⟨heap.n, Nat.lt_succ_self _⟩
 
-/-- 配列の全要素を追加してヒープを構築する。計算量は `O(n log n)`。 -/
+/-- 配列からヒープを構築する。
+
+末端から順に `modifyDown` するボトムアップ構築なので、計算量は `O(n)`。
+(要素を一つずつ `add` すると `O(n log n)` になる。) -/
 def ofArray (xs : Array α) (cmp : α → α → Ordering := by exact compare) : Heap α :=
-  xs.foldl (fun heap x => heap.add x) (empty cmp)
+  Impl.heapifyFrom ⟨xs.size, xs.toVector, cmp⟩ (xs.size / 2)
 
 def top (heap : Heap α) (h : 0 < heap.n) := heap.data[0]
 def top? (heap : Heap α) : Option α := heap.data[0]?

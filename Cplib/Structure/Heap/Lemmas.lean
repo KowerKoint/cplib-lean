@@ -111,55 +111,51 @@ theorem add_data_perm [BEq α] [LawfulBEq α] (heap : Heap α) (x : α) :
   apply List.Perm.trans (Impl.modifyUp_data_perm _ _)
   rw [Vector.toList_push]
 
+@[simp] theorem Impl.heapifyFrom_n (heap : Heap α) (k : Nat) :
+    (Impl.heapifyFrom heap k).n = heap.n := by
+  induction k generalizing heap with
+  | zero => rfl
+  | succ k ih =>
+      rw [Impl.heapifyFrom]
+      split
+      · rw [ih, Impl.modifyDown_n]
+      · exact ih heap
+
+@[simp] theorem Impl.heapifyFrom_cmp (heap : Heap α) (k : Nat) :
+    (Impl.heapifyFrom heap k).cmp = heap.cmp := by
+  induction k generalizing heap with
+  | zero => rfl
+  | succ k ih =>
+      rw [Impl.heapifyFrom]
+      split
+      · rw [ih, Impl.modifyDown_cmp]
+      · exact ih heap
+
+theorem Impl.heapifyFrom_data_perm [BEq α] [LawfulBEq α] (heap : Heap α) (k : Nat) :
+    (Impl.heapifyFrom heap k).data.toList.Perm heap.data.toList := by
+  induction k generalizing heap with
+  | zero => exact List.Perm.refl _
+  | succ k ih =>
+      rw [Impl.heapifyFrom]
+      by_cases h : k < heap.n
+      · rw [dif_pos h]
+        exact List.Perm.trans (ih _) (Impl.modifyDown_data_perm _ _)
+      · rw [dif_neg h]
+        exact ih heap
+
 @[simp] theorem ofArray_n (xs : Array α) (cmp : α → α → Ordering) :
     (ofArray xs cmp).n = xs.size := by
-  unfold ofArray
-  rw [← Array.foldl_toList]
-  have go (ys : List α) (heap : Heap α) :
-      (ys.foldl (fun heap x => heap.add x) heap).n = heap.n + ys.length := by
-    induction ys generalizing heap with
-    | nil => simp
-    | cons y ys ih =>
-        simp only [List.foldl_cons]
-        rw [ih]
-        simp only [add_n, List.length_cons]
-        omega
-  rw [go]
-  simp
+  simp [ofArray]
 
 @[simp] theorem ofArray_cmp (xs : Array α) (cmp : α → α → Ordering) :
     (ofArray xs cmp).cmp = cmp := by
-  unfold ofArray
-  rw [← Array.foldl_toList]
-  have go (ys : List α) (heap : Heap α) :
-      (ys.foldl (fun heap x => heap.add x) heap).cmp = heap.cmp := by
-    induction ys generalizing heap with
-    | nil => rfl
-    | cons y ys ih =>
-        simp only [List.foldl_cons]
-        rw [ih]
-        simp
-  rw [go]
-  rfl
+  simp [ofArray]
 
 theorem ofArray_data_perm [BEq α] [LawfulBEq α]
     (xs : Array α) (cmp : α → α → Ordering) :
     (ofArray xs cmp).data.toList.Perm xs.toList := by
   unfold ofArray
-  rw [← Array.foldl_toList]
-  have go (ys : List α) (heap : Heap α) :
-      (ys.foldl (fun heap x => heap.add x) heap).data.toList.Perm
-        (heap.data.toList ++ ys) := by
-    induction ys generalizing heap with
-    | nil => simp
-    | cons y ys ih =>
-        simp only [List.foldl_cons]
-        apply List.Perm.trans (ih (heap.add y))
-        apply List.Perm.trans
-          (List.Perm.append_right ys (add_data_perm heap y))
-        simp
-  apply List.Perm.trans (go xs.toList (empty cmp))
-  simp
+  exact Impl.heapifyFrom_data_perm _ _
 
 @[simp] theorem pop_n (heap : Heap α) (h : 0 < heap.n) :
     (heap.pop h).n = heap.n - 1 := by
