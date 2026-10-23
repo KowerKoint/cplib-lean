@@ -9,7 +9,7 @@ def naive (modulus : Nat) (xs ys : Array Nat) : Array Nat :=
   if xs.isEmpty || ys.isEmpty then #[]
   else
     (Array.range (xs.size + ys.size - 1)).map fun k =>
-      (Array.range xs.size).foldl (fun total i =>
+      Nat.fold xs.size (fun i _ total =>
         if h : i ≤ k ∧ k - i < ys.size then
           (total + xs.getD i 0 * ys[k - i]) % modulus
         else total) 0

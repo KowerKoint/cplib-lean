@@ -52,7 +52,7 @@ private theorem buildData_get_of_cap_le [Mul M] {cap : Nat} (xs : List (Fin cap)
 
 @[simp] theorem ofArray_get [Mul M] [One M] (a : Array M) (i : Fin a.size) :
     get (ofArray a) i = a[i] := by
-  simp [get, ofArray]
+  simp [get, ofArray, Fin.foldl_eq_finRange_foldl, Fin.foldr_eq_finRange_foldr]
   have hi := i.isLt
   have hs := Nat.le_nextPowerOfTwo a.size
   have hc : 0 < a.size.nextPowerOfTwo :=
@@ -431,7 +431,7 @@ theorem ofArray_Valid [Mul M] [One M] (a : Array M) : Valid (ofArray a) := by
   simp [Valid]
   constructor
   · intro i i0
-    simp [ofArray]
+    simp [ofArray, Fin.foldl_eq_finRange_foldl, Fin.foldr_eq_finRange_foldr]
     have hi : i.val < a.size.nextPowerOfTwo := i.isLt
     change (buildData (List.finRange _) _)[i.val] =
       (buildData (List.finRange _) _)[i.val * 2] *
@@ -439,7 +439,7 @@ theorem ofArray_Valid [Mul M] [One M] (a : Array M) : Valid (ofArray a) := by
     exact buildData_valid _ (List.pairwise_lt_finRange _) _ i
       (List.mem_finRange i) i0
   ·
-    simp [ofArray]
+    simp [ofArray, Fin.foldl_eq_finRange_foldl, Fin.foldr_eq_finRange_foldr]
     intro i hsi
     have hi : i.val < a.size.nextPowerOfTwo := i.isLt
     let base : Vector M (a.size.nextPowerOfTwo * 2) :=

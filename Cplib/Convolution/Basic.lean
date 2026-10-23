@@ -18,7 +18,7 @@ def nttFuel (modulus primitiveRoot : Nat) : Nat → Array Nat → Array Nat
         let even := nttFuel modulus primitiveRoot fuel even
         let odd := nttFuel modulus primitiveRoot fuel odd
         let step := NumberTheory.powMod primitiveRoot ((modulus - 1) / xs.size) modulus
-        let (_, left, right) := indices.foldl (fun (root, left, right) i =>
+        let (_, left, right) := Nat.fold half (fun i _ (root, left, right) =>
           let term := root * odd.getD i 0 % modulus
           let a := (even.getD i 0 + term) % modulus
           let b := (even.getD i 0 + modulus - term) % modulus

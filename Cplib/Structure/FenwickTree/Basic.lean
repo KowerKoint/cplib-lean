@@ -49,7 +49,7 @@ def get [Add α] [Sub α] [Zero α] (self : FenwickTree α n) (i : Fin n) : α :
 
 /-- Build a Fenwick tree from point values. -/
 def ofArray [Add α] [Zero α] (xs : Array α) : FenwickTree α xs.size :=
-  (List.finRange xs.size).foldl (fun tree i => tree.add i xs[i]) (empty xs.size)
+  Fin.foldl xs.size (fun tree i => tree.add i xs[i]) (empty xs.size)
 
 end FenwickTree
 

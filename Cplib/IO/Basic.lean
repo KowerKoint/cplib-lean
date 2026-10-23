@@ -103,7 +103,7 @@ def readIntMatrix (n : Nat) : IO (Array (Array Int)) :=
 
 /-- `n` 頂点 `m` 辺の無向グラフを読み、隣接リストを返す。 -/
 def readGraph (n m : Nat) (offset : Nat := 1) : IO (Array (List Nat)) :=
-  List.range m |>.foldlM (fun g _ => do
+  Nat.foldM m (fun _ _ g => do
     let (a, b) ← readNats2
     let (a, b) := (a - offset, b - offset)
     return g.modify a (b :: ·) |>.modify b (a :: ·)

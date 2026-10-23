@@ -90,8 +90,8 @@ def ofArray (a : Array M) : SegTree M :=
     exact Nat.le_nextPowerOfTwo sz
   let cap_pow2 : Nat.isPowerOfTwo cap := Nat.isPowerOfTwo_nextPowerOfTwo sz
   let cap_pos : 0 < cap := Nat.pos_of_isPowerOfTwo cap_pow2
-  let dataLeaf := List.finRange sz |>.foldl (fun dat i => dat.set (cap + i) a[i]) (Vector.replicate (cap*2) 1)
-  let data := List.finRange cap |>.foldr (fun i dat => dat.set i (dat[i.val * 2] * dat[i.val * 2 + 1])) dataLeaf
+  let dataLeaf := Fin.foldl sz (fun dat i => dat.set (cap + i) a[i]) (Vector.replicate (cap*2) 1)
+  let data := Fin.foldr cap (fun i dat => dat.set i (dat[i.val * 2] * dat[i.val * 2 + 1])) dataLeaf
   ⟨sz, cap, sz_le, cap_pos, cap_pow2, data⟩
 
 def replicate (n : Nat) : SegTree M :=

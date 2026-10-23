@@ -30,7 +30,7 @@ def dfsPostOrderRev (fuel : Nat) (g : Array (List Nat))
       (seen, u :: order)
 
 def reverseGraph (n : Nat) (g : Array (List Nat)) : Array (List Nat) :=
-  List.range n |>.foldl (fun rg u =>
+  Nat.fold n (fun u _ rg =>
     g[u]!.foldl (fun rg v => rg.modify v (u :: ·)) rg
   ) (Array.replicate n [])
 
@@ -42,7 +42,7 @@ end Impl
 `g.size = n` かつ全ての隣接先が `n` 未満であることを要求する。
 -/
 def scc (n : Nat) (g : Array (List Nat)) : List (List Nat) :=
-  let (_, postOrderRev) := List.range n |>.foldl (fun (seen, order) u =>
+  let (_, postOrderRev) := Nat.fold n (fun u _ (seen, order) =>
     if seen[u]! then (seen, order)
     else Impl.dfsPostOrderRev n g (seen.set! u true) order u
   ) (Array.replicate n false, [])

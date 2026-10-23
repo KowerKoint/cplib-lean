@@ -7,7 +7,7 @@ namespace LCPArray
 namespace Impl
 
 def inverse (n : Nat) (sa : Array Nat) : Array Nat :=
-  (List.finRange sa.size).foldl (fun rank (i : Fin sa.size) =>
+  Fin.foldl sa.size (fun rank (i : Fin sa.size) =>
     let p := sa[i]
     if p < n then rank.setIfInBounds p i.val else rank) (Array.replicate n 0)
 

@@ -1,4 +1,5 @@
 import Cplib.Graph.SCC.Basic
+import Cplib.Util.Fold.Lemmas
 import Mathlib.Tactic
 
 namespace Cplib
@@ -37,7 +38,7 @@ def ValidInput (n : Nat) (g : Array (List Nat)) : Prop :=
         simp only [List.foldl_cons]
         rw [ih, inner]
   simp only [Impl.reverseGraph]
-  rw [outer]
+  rw [Nat.fold_eq_foldl_range, outer]
   simp
 
 /-- 孤立した各頂点はそれぞれ一つの強連結成分になる。 -/
