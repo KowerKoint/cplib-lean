@@ -44,7 +44,11 @@ def addClause (self : TwoSAT n) (i : Fin n) (iValue : Bool)
 def solve (self : TwoSAT n) : Option (Vector Bool n) :=
   let components := SCC.scc (n * 2) self.graph.toArray
   let ids := Impl.componentIds (n * 2) components
-  if ∃ i : Fin n, ids[(Impl.literal i false).val]! = ids[(Impl.literal i true).val]! then
+  -- `∃ i : Fin n, …` の `Decidable` インスタンス (core の `decidableExistsLT`) は
+  -- 深さ n の非末尾再帰になりスタックを溢れさせる。`Nat.any` は `@[csimp]` で
+  -- 末尾再帰の `Nat.anyTR` に落ちる。
+  if Nat.any n (fun i h =>
+      ids[(Impl.literal ⟨i, h⟩ false).val]! == ids[(Impl.literal ⟨i, h⟩ true).val]!) then
     none
   else
     some (Vector.ofFn fun i =>
