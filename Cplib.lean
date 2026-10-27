@@ -17,6 +17,8 @@ import Cplib.Tree
 import Cplib.Graph
 
 -- Data structures
+import Cplib.Structure.Deque
+import Cplib.Structure.RingBuffer
 import Cplib.Structure.Heap
 import Cplib.Structure.LazySegTree
 import Cplib.Structure.SegTree
