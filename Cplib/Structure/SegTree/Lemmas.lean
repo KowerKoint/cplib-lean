@@ -595,6 +595,22 @@ example :
       tree.minLeft 0 (· ≤ 0) == 0 := by
   native_decide
 
+/-- `!` / `?` 版は範囲内では `Fin` 版と一致し、境界は `sz` (添字系は `sz - 1`)。 -/
+example :
+    let tree := ofArray #[2, 3, 5, 7]
+    tree.get! 2 == 5 && tree.prod! 1 3 == 15 && (tree.set! 0 11).get! 0 == 11 &&
+      tree.maxRight! 0 (· ≤ 30) == 3 && tree.minLeft! 4 (· ≤ 35) == 2 := by
+  native_decide
+
+example :
+    let tree := ofArray #[2, 3, 5, 7]
+    (tree.get? 3).isSome && (tree.get? 4).isNone &&
+      (tree.set? 3 1).isSome && (tree.set? 4 1).isNone &&
+      (tree.prod? 0 4).isSome && (tree.prod? 0 5).isNone &&
+      (tree.maxRight? 4 (· ≤ 0)).isSome && (tree.maxRight? 5 (· ≤ 0)).isNone &&
+      (tree.minLeft? 4 (· ≤ 0)).isSome && (tree.minLeft? 5 (· ≤ 0)).isNone := by
+  native_decide
+
 end SegTree
 
 end Cplib

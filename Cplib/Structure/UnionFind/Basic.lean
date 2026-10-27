@@ -1,3 +1,4 @@
+import Cplib.Util.Unwrap.Basic
 
 namespace Cplib
 /-- Persistent union-find (disjoint-set union) with path compression and union by size. -/
@@ -59,6 +60,44 @@ def merge (self : UnionFind n) (a b : Fin n) : UnionFind n :=
     { self with
       parent := self.parent.set y x
       componentSize := self.componentSize.set x (self.componentSize[x] + self.componentSize[y]) }
+
+/-- `leader` の範囲外安全版。`a < n` でなければ `none`。 -/
+def leader? (self : UnionFind n) (a : Nat) : Option (Fin n × UnionFind n) :=
+  if h : a < n then some (self.leader ⟨a, h⟩) else none
+
+/-- `leader` の無条件版。`a < n` でなければ停止する。
+
+`n = 0` では `Fin n` の値が作れないため、代表元は `Nat` で返す。 -/
+def leader! (self : UnionFind n) (a : Nat) : Nat × UnionFind n :=
+  let _ : Inhabited (Nat × UnionFind n) := ⟨(0, self)⟩
+  unwrap! "UnionFind.leader!" ((self.leader? a).map (fun (root, self) => (root.val, self)))
+
+/-- `same` の範囲外安全版。`a < n` かつ `b < n` でなければ `none`。 -/
+def same? (self : UnionFind n) (a b : Nat) : Option (Bool × UnionFind n) :=
+  if h : a < n ∧ b < n then some (self.same ⟨a, h.1⟩ ⟨b, h.2⟩) else none
+
+/-- `same` の無条件版。`a < n` かつ `b < n` でなければ停止する。 -/
+def same! (self : UnionFind n) (a b : Nat) : Bool × UnionFind n :=
+  let _ : Inhabited (Bool × UnionFind n) := ⟨(false, self)⟩
+  unwrap! "UnionFind.same!" (self.same? a b)
+
+/-- `size` の範囲外安全版。`a < n` でなければ `none`。 -/
+def size? (self : UnionFind n) (a : Nat) : Option (Nat × UnionFind n) :=
+  if h : a < n then some (self.size ⟨a, h⟩) else none
+
+/-- `size` の無条件版。`a < n` でなければ停止する。 -/
+def size! (self : UnionFind n) (a : Nat) : Nat × UnionFind n :=
+  let _ : Inhabited (Nat × UnionFind n) := ⟨(0, self)⟩
+  unwrap! "UnionFind.size!" (self.size? a)
+
+/-- `merge` の範囲外安全版。`a < n` かつ `b < n` でなければ `none`。 -/
+def merge? (self : UnionFind n) (a b : Nat) : Option (UnionFind n) :=
+  if h : a < n ∧ b < n then some (self.merge ⟨a, h.1⟩ ⟨b, h.2⟩) else none
+
+/-- `merge` の無条件版。`a < n` かつ `b < n` でなければ停止する。 -/
+def merge! (self : UnionFind n) (a b : Nat) : UnionFind n :=
+  let _ : Inhabited (UnionFind n) := ⟨self⟩
+  unwrap! "UnionFind.merge!" (self.merge? a b)
 
 namespace Impl
 

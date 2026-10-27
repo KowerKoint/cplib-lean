@@ -1,4 +1,5 @@
 import Cplib.Util.Number.Basic
+import Cplib.Util.Unwrap.Basic
 
 namespace Cplib
 
@@ -106,26 +107,37 @@ def get (self : SegTree M) (i : Fin self.sz) : M :=
 def get? (self : SegTree M) (i : Nat) : Option M :=
   if hi : i < self.sz then some (get self ⟨i, hi⟩) else none
 
+/-- `get` の無条件版。`i < sz` でなければ停止する。 -/
 def get! (self : SegTree M) (i : Nat) : M :=
   let _ : Inhabited M := ⟨1⟩
-  self.get? i |>.get!
+  unwrap! "SegTree.get!" (self.get? i)
 
 def set (self : SegTree M) (i : Fin self.sz) (x : M) : SegTree M :=
   { self with data := Impl.setData self i x }
 
+/-- `set` の範囲外安全版。`i < sz` でなければ `none`。 -/
+def set? (self : SegTree M) (i : Nat) (x : M) : Option (SegTree M) :=
+  if hi : i < self.sz then some (self.set ⟨i, hi⟩ x) else none
+
+/-- `set` の無条件版。`i < sz` でなければ停止する。 -/
 def set! (self : SegTree M) (i : Nat) (x : M) : SegTree M :=
-  if hi : i < self.sz then self.set ⟨i, hi⟩ x
-  else self
+  let _ : Inhabited (SegTree M) := ⟨self⟩
+  unwrap! "SegTree.set!" (self.set? i x)
 
 def prod (self : SegTree M) (l r : Fin (self.sz + 1)) : M :=
   if l ≥ r then 1
   else Impl.prod self 1 0 self.cap l.val r.val
 
-def prod! (self : SegTree M) (l r : Nat) : M :=
+/-- `prod` の範囲外安全版。`l ≤ sz` かつ `r ≤ sz` でなければ `none`。 -/
+def prod? (self : SegTree M) (l r : Nat) : Option M :=
   if h : l < self.sz + 1 ∧ r < self.sz + 1 then
-    self.prod ⟨l, h.left⟩ ⟨r, h.right⟩
-  else
-    1
+    some (self.prod ⟨l, h.left⟩ ⟨r, h.right⟩)
+  else none
+
+/-- `prod` の無条件版。`l ≤ sz` かつ `r ≤ sz` でなければ停止する。 -/
+def prod! (self : SegTree M) (l r : Nat) : M :=
+  let _ : Inhabited M := ⟨1⟩
+  unwrap! "SegTree.prod!" (self.prod? l r)
 
 /-- Product of the entire array. -/
 def allProd (self : SegTree M) : M := self.data.getD 1 1
@@ -139,6 +151,22 @@ def maxRight (self : SegTree M) (l : Fin (self.sz + 1)) (p : M → Bool) : Nat :
 `p` is monotone and `p 1 = true`. -/
 def minLeft (self : SegTree M) (r : Fin (self.sz + 1)) (p : M → Bool) : Nat :=
   (Impl.minLeft self p r self.cap 1 0 self.cap 1).1.getD 0
+
+/-- `maxRight` の範囲外安全版。`l ≤ sz` でなければ `none`。 -/
+def maxRight? (self : SegTree M) (l : Nat) (p : M → Bool) : Option Nat :=
+  if h : l < self.sz + 1 then some (self.maxRight ⟨l, h⟩ p) else none
+
+/-- `maxRight` の無条件版。`l ≤ sz` でなければ停止する。 -/
+def maxRight! (self : SegTree M) (l : Nat) (p : M → Bool) : Nat :=
+  unwrap! "SegTree.maxRight!" (self.maxRight? l p)
+
+/-- `minLeft` の範囲外安全版。`r ≤ sz` でなければ `none`。 -/
+def minLeft? (self : SegTree M) (r : Nat) (p : M → Bool) : Option Nat :=
+  if h : r < self.sz + 1 then some (self.minLeft ⟨r, h⟩ p) else none
+
+/-- `minLeft` の無条件版。`r ≤ sz` でなければ停止する。 -/
+def minLeft! (self : SegTree M) (r : Nat) (p : M → Bool) : Nat :=
+  unwrap! "SegTree.minLeft!" (self.minLeft? r p)
 end SegTree
 
 end Cplib

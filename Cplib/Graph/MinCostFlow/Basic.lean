@@ -1,4 +1,5 @@
 import Cplib.Structure.Heap.Basic
+import Cplib.Util.Unwrap.Basic
 
 namespace Cplib
 
@@ -165,6 +166,44 @@ def flowUpTo (self : MinCostFlow n) (source sink : Fin n) (limit : Nat) :
 def flow (self : MinCostFlow n) (source sink : Fin n) :
     (Nat × Int) × MinCostFlow n :=
   self.flowUpTo source sink self.totalCapacity
+
+/-- `addEdge` の範囲外安全版。`source < n` かつ `target < n` でなければ `none`。 -/
+def addEdge? (self : MinCostFlow n) (source target : Nat) (capacity cost : Nat) :
+    Option (Nat × MinCostFlow n) :=
+  if h : source < n ∧ target < n then
+    some (self.addEdge ⟨source, h.1⟩ ⟨target, h.2⟩ capacity cost)
+  else none
+
+/-- `addEdge` の無条件版。`source < n` かつ `target < n` でなければ停止する。 -/
+def addEdge! (self : MinCostFlow n) (source target : Nat) (capacity cost : Nat) :
+    Nat × MinCostFlow n :=
+  let _ : Inhabited (Nat × MinCostFlow n) := ⟨(0, self)⟩
+  unwrap! "MinCostFlow.addEdge!" (self.addEdge? source target capacity cost)
+
+/-- `flowUpTo` の範囲外安全版。`source < n` かつ `sink < n` でなければ `none`。 -/
+def flowUpTo? (self : MinCostFlow n) (source sink : Nat) (limit : Nat) :
+    Option ((Nat × Int) × MinCostFlow n) :=
+  if h : source < n ∧ sink < n then
+    some (self.flowUpTo ⟨source, h.1⟩ ⟨sink, h.2⟩ limit)
+  else none
+
+/-- `flowUpTo` の無条件版。`source < n` かつ `sink < n` でなければ停止する。 -/
+def flowUpTo! (self : MinCostFlow n) (source sink : Nat) (limit : Nat) :
+    (Nat × Int) × MinCostFlow n :=
+  let _ : Inhabited ((Nat × Int) × MinCostFlow n) := ⟨((0, 0), self)⟩
+  unwrap! "MinCostFlow.flowUpTo!" (self.flowUpTo? source sink limit)
+
+/-- `flow` の範囲外安全版。`source < n` かつ `sink < n` でなければ `none`。 -/
+def flow? (self : MinCostFlow n) (source sink : Nat) :
+    Option ((Nat × Int) × MinCostFlow n) :=
+  if h : source < n ∧ sink < n then
+    some (self.flow ⟨source, h.1⟩ ⟨sink, h.2⟩)
+  else none
+
+/-- `flow` の無条件版。`source < n` かつ `sink < n` でなければ停止する。 -/
+def flow! (self : MinCostFlow n) (source sink : Nat) : (Nat × Int) × MinCostFlow n :=
+  let _ : Inhabited ((Nat × Int) × MinCostFlow n) := ⟨((0, 0), self)⟩
+  unwrap! "MinCostFlow.flow!" (self.flow? source sink)
 
 end MinCostFlow
 

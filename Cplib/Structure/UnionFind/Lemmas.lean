@@ -71,6 +71,24 @@ example :
     connected && !separate && card == 4 := by
   native_decide
 
+/-- `!` / `?` 版は範囲内では `Fin` 版と一致する。 -/
+example :
+    let uf := (empty 5).merge! 0 1 |>.merge! 3 4 |>.merge! 1 4
+    let (connected, uf) := uf.same! 0 3
+    let (separate, uf) := uf.same! 0 2
+    let (card, uf) := uf.size! 4
+    let (root, _) := uf.leader! 4
+    connected && !separate && card == 4 && root == 0 := by
+  native_decide
+
+example :
+    let uf := empty 5
+    (uf.leader? 4).isSome && (uf.leader? 5).isNone &&
+      (uf.merge? 4 0).isSome && (uf.merge? 5 0).isNone &&
+      (uf.same? 0 4).isSome && (uf.same? 0 5).isNone &&
+      (uf.size? 4).isSome && (uf.size? 5).isNone := by
+  native_decide
+
 end UnionFind
 
 end Cplib

@@ -1,3 +1,4 @@
+import Cplib.Util.Unwrap.Basic
 
 namespace Cplib
 /-- A residual edge used internally by Dinic's algorithm. -/
@@ -159,6 +160,63 @@ def flow (self : MaxFlow n) (source sink : Fin n) : Nat × MaxFlow n :=
 def minCut (self : MaxFlow n) (source : Fin n) : Vector Bool n :=
   let levels := Impl.levels self source
   Vector.ofFn fun i => levels.getD i n ≠ n
+
+/-- `addEdge` の範囲外安全版。`source < n` かつ `target < n` でなければ `none`。 -/
+def addEdge? (self : MaxFlow n) (source target : Nat) (capacity : Nat) :
+    Option (Nat × MaxFlow n) :=
+  if h : source < n ∧ target < n then
+    some (self.addEdge ⟨source, h.1⟩ ⟨target, h.2⟩ capacity)
+  else none
+
+/-- `addEdge` の無条件版。`source < n` かつ `target < n` でなければ停止する。 -/
+def addEdge! (self : MaxFlow n) (source target : Nat) (capacity : Nat) : Nat × MaxFlow n :=
+  let _ : Inhabited (Nat × MaxFlow n) := ⟨(0, self)⟩
+  unwrap! "MaxFlow.addEdge!" (self.addEdge? source target capacity)
+
+/-- `changeEdge` の範囲外安全版。`edgeId` が既存の辺を指し、`flow ≤ capacity`
+でなければ `none`。 -/
+def changeEdge? (self : MaxFlow n) (edgeId : Nat) (capacity flow : Nat) :
+    Option (MaxFlow n) :=
+  if h : edgeId < self.original.size ∧ flow < capacity + 1 then
+    some (self.changeEdge ⟨edgeId, h.1⟩ capacity ⟨flow, h.2⟩)
+  else none
+
+/-- `changeEdge` の無条件版。上の条件を満たさなければ停止する。 -/
+def changeEdge! (self : MaxFlow n) (edgeId : Nat) (capacity flow : Nat) : MaxFlow n :=
+  let _ : Inhabited (MaxFlow n) := ⟨self⟩
+  unwrap! "MaxFlow.changeEdge!" (self.changeEdge? edgeId capacity flow)
+
+/-- `flowUpTo` の範囲外安全版。`source < n` かつ `sink < n` でなければ `none`。 -/
+def flowUpTo? (self : MaxFlow n) (source sink : Nat) (limit : Nat) :
+    Option (Nat × MaxFlow n) :=
+  if h : source < n ∧ sink < n then
+    some (self.flowUpTo ⟨source, h.1⟩ ⟨sink, h.2⟩ limit)
+  else none
+
+/-- `flowUpTo` の無条件版。`source < n` かつ `sink < n` でなければ停止する。 -/
+def flowUpTo! (self : MaxFlow n) (source sink : Nat) (limit : Nat) : Nat × MaxFlow n :=
+  let _ : Inhabited (Nat × MaxFlow n) := ⟨(0, self)⟩
+  unwrap! "MaxFlow.flowUpTo!" (self.flowUpTo? source sink limit)
+
+/-- `flow` の範囲外安全版。`source < n` かつ `sink < n` でなければ `none`。 -/
+def flow? (self : MaxFlow n) (source sink : Nat) : Option (Nat × MaxFlow n) :=
+  if h : source < n ∧ sink < n then
+    some (self.flow ⟨source, h.1⟩ ⟨sink, h.2⟩)
+  else none
+
+/-- `flow` の無条件版。`source < n` かつ `sink < n` でなければ停止する。 -/
+def flow! (self : MaxFlow n) (source sink : Nat) : Nat × MaxFlow n :=
+  let _ : Inhabited (Nat × MaxFlow n) := ⟨(0, self)⟩
+  unwrap! "MaxFlow.flow!" (self.flow? source sink)
+
+/-- `minCut` の範囲外安全版。`source < n` でなければ `none`。 -/
+def minCut? (self : MaxFlow n) (source : Nat) : Option (Vector Bool n) :=
+  if h : source < n then some (self.minCut ⟨source, h⟩) else none
+
+/-- `minCut` の無条件版。`source < n` でなければ停止する。 -/
+def minCut! (self : MaxFlow n) (source : Nat) : Vector Bool n :=
+  let _ : Inhabited (Vector Bool n) := ⟨Vector.replicate n false⟩
+  unwrap! "MaxFlow.minCut!" (self.minCut? source)
 
 end MaxFlow
 

@@ -41,6 +41,22 @@ example :
       (tree.add ⟨2, by decide⟩ 10).get ⟨2, by decide⟩ == 14 := by
   native_decide
 
+/-- `!` 版は範囲内では `Fin` 版と一致する。 -/
+example :
+    let tree := ofArray #[3, 1, 4, 1, 5]
+    tree.prefixSum! 4 == 9 && tree.sum! 1 4 == 6 &&
+      (tree.add! 2 10).get! 2 == 14 := by
+  native_decide
+
+/-- `?` 版の境界。`prefixSum` と `sum` は `n` まで、`add` と `get` は `n - 1` まで。 -/
+example :
+    let tree := ofArray #[3, 1, 4, 1, 5]
+    (tree.prefixSum? 5).isSome && (tree.prefixSum? 6).isNone &&
+      (tree.sum? 0 5).isSome && (tree.sum? 0 6).isNone &&
+      (tree.get? 4).isSome && (tree.get? 5).isNone &&
+      (tree.add? 4 1).isSome && (tree.add? 5 1).isNone := by
+  native_decide
+
 end FenwickTree
 
 end Cplib

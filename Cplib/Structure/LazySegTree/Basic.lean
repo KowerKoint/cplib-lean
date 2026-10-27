@@ -1,4 +1,5 @@
 import Cplib.Structure.SegTree.Basic
+import Cplib.Util.Unwrap.Basic
 
 namespace Cplib
 
@@ -131,6 +132,62 @@ def maxRight (self : LazySegTree M F) (l : Fin (self.sz + 1)) (p : M → Bool) :
 `p` is monotone and `p 1 = true`. -/
 def minLeft (self : LazySegTree M F) (r : Fin (self.sz + 1)) (p : M → Bool) : Nat :=
   (Impl.minLeft self.sz r p self.cap 1 0 self.cap 1 1 self.data self.lazy).1.getD 0
+
+/-- `applyRange` の範囲外安全版。`l ≤ sz` かつ `r ≤ sz` でなければ `none`。 -/
+def applyRange? (self : LazySegTree M F) (l r : Nat) (f : F) : Option (LazySegTree M F) :=
+  if h : l < self.sz + 1 ∧ r < self.sz + 1 then
+    some (self.applyRange ⟨l, h.1⟩ ⟨r, h.2⟩ f)
+  else none
+
+/-- `applyRange` の無条件版。`l ≤ sz` かつ `r ≤ sz` でなければ停止する。 -/
+def applyRange! (self : LazySegTree M F) (l r : Nat) (f : F) : LazySegTree M F :=
+  let _ : Inhabited (LazySegTree M F) := ⟨self⟩
+  unwrap! "LazySegTree.applyRange!" (self.applyRange? l r f)
+
+/-- `prod` の範囲外安全版。`l ≤ sz` かつ `r ≤ sz` でなければ `none`。 -/
+def prod? (self : LazySegTree M F) (l r : Nat) : Option M :=
+  if h : l < self.sz + 1 ∧ r < self.sz + 1 then
+    some (self.prod ⟨l, h.1⟩ ⟨r, h.2⟩)
+  else none
+
+/-- `prod` の無条件版。`l ≤ sz` かつ `r ≤ sz` でなければ停止する。 -/
+def prod! (self : LazySegTree M F) (l r : Nat) : M :=
+  let _ : Inhabited M := ⟨1⟩
+  unwrap! "LazySegTree.prod!" (self.prod? l r)
+
+/-- `get` の範囲外安全版。`i < sz` でなければ `none`。 -/
+def get? (self : LazySegTree M F) (i : Nat) : Option M :=
+  if h : i < self.sz then some (self.get ⟨i, h⟩) else none
+
+/-- `get` の無条件版。`i < sz` でなければ停止する。 -/
+def get! (self : LazySegTree M F) (i : Nat) : M :=
+  let _ : Inhabited M := ⟨1⟩
+  unwrap! "LazySegTree.get!" (self.get? i)
+
+/-- `apply` の範囲外安全版。`i < sz` でなければ `none`。 -/
+def apply? (self : LazySegTree M F) (i : Nat) (f : F) : Option (LazySegTree M F) :=
+  if h : i < self.sz then some (self.apply ⟨i, h⟩ f) else none
+
+/-- `apply` の無条件版。`i < sz` でなければ停止する。 -/
+def apply! (self : LazySegTree M F) (i : Nat) (f : F) : LazySegTree M F :=
+  let _ : Inhabited (LazySegTree M F) := ⟨self⟩
+  unwrap! "LazySegTree.apply!" (self.apply? i f)
+
+/-- `maxRight` の範囲外安全版。`l ≤ sz` でなければ `none`。 -/
+def maxRight? (self : LazySegTree M F) (l : Nat) (p : M → Bool) : Option Nat :=
+  if h : l < self.sz + 1 then some (self.maxRight ⟨l, h⟩ p) else none
+
+/-- `maxRight` の無条件版。`l ≤ sz` でなければ停止する。 -/
+def maxRight! (self : LazySegTree M F) (l : Nat) (p : M → Bool) : Nat :=
+  unwrap! "LazySegTree.maxRight!" (self.maxRight? l p)
+
+/-- `minLeft` の範囲外安全版。`r ≤ sz` でなければ `none`。 -/
+def minLeft? (self : LazySegTree M F) (r : Nat) (p : M → Bool) : Option Nat :=
+  if h : r < self.sz + 1 then some (self.minLeft ⟨r, h⟩ p) else none
+
+/-- `minLeft` の無条件版。`r ≤ sz` でなければ停止する。 -/
+def minLeft! (self : LazySegTree M F) (r : Nat) (p : M → Bool) : Nat :=
+  unwrap! "LazySegTree.minLeft!" (self.minLeft? r p)
 
 end LazySegTree
 

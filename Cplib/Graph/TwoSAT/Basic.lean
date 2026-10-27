@@ -1,4 +1,5 @@
 import Cplib.Graph.SCC.Basic
+import Cplib.Util.Unwrap.Basic
 import Init.Omega
 
 namespace Cplib
@@ -39,6 +40,19 @@ def addClause (self : TwoSAT n) (i : Fin n) (iValue : Bool)
   let notJ := Impl.literal j (!jValue)
   let graph := Impl.addImplication self.graph notI jLit
   ⟨Impl.addImplication graph notJ iLit⟩
+
+/-- `addClause` の範囲外安全版。`i < n` かつ `j < n` でなければ `none`。 -/
+def addClause? (self : TwoSAT n) (i : Nat) (iValue : Bool)
+    (j : Nat) (jValue : Bool) : Option (TwoSAT n) :=
+  if h : i < n ∧ j < n then
+    some (self.addClause ⟨i, h.1⟩ iValue ⟨j, h.2⟩ jValue)
+  else none
+
+/-- `addClause` の無条件版。`i < n` かつ `j < n` でなければ停止する。 -/
+def addClause! (self : TwoSAT n) (i : Nat) (iValue : Bool)
+    (j : Nat) (jValue : Bool) : TwoSAT n :=
+  let _ : Inhabited (TwoSAT n) := ⟨self⟩
+  unwrap! "TwoSAT.addClause!" (self.addClause? i iValue j jValue)
 
 /-- A satisfying assignment, or `none` when the clauses are inconsistent. -/
 def solve (self : TwoSAT n) : Option (Vector Bool n) :=
