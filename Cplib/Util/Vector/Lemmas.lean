@@ -37,14 +37,15 @@ private theorem List.perm_swap [BEq α] [LawfulBEq α]
     · simp [hia, hja]
     · simp [hia, hja]
 
-/-- `Vector.swap` は要素の順列だけを変え、内容の多重集合を保存する。 -/
+/-- `Vector.swap` only permutes, so it preserves the multiset of elements. -/
 theorem toList_swap_perm [BEq α] [LawfulBEq α]
     (v : Vector α n) (i j : Fin n) :
     (v.swap i j).toList.Perm v.toList := by
   rw [Vector.toList_swap]
   exact List.perm_swap v.toList i.val j.val (by simp) (by simp)
 
-/-- `Vector.set` を畳み込んでも、どの更新対象とも異なる添字の値は変わらない。 -/
+/-- Folding `Vector.set` leaves every index untouched that none of the updates
+targets. -/
 theorem getElem_foldl_set_of_forall_ne {N : Nat} {I : Type}
     (xs : List I) (idx : I → Nat) (hidx : ∀ x, idx x < N) (value : I → α)
     (data : Vector α N) (j : Nat) (hj : j < N)
@@ -62,7 +63,8 @@ theorem getElem_foldl_set_of_forall_ne {N : Nat} {I : Type}
     · intro y hy
       exact hne y (by simp [hy])
 
-/-- 相異なる添字を順に `Vector.set` すると、更新対象の値は指定値になる。 -/
+/-- Folding `Vector.set` over distinct indices leaves each target holding the value
+it was given. -/
 theorem getElem_foldl_set_of_mem {N : Nat} {I : Type}
     (xs : List I) (idx : I → Nat) (hidx : ∀ x, idx x < N) (value : I → α)
     (data : Vector α N) (x : I) (hx : x ∈ xs) (hnodup : xs.Nodup)

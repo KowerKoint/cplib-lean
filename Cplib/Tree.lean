@@ -3,5 +3,5 @@ import Cplib.Tree.Traversal
 /-!
 # Tree
 
-木アルゴリズムの集約モジュール。
+Aggregate module for the tree algorithms.
 -/

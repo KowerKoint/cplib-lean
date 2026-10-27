@@ -7,12 +7,12 @@ namespace Cplib
 /-!
 # Graph.SCC.Lemmas
 
-強連結成分分解の仕様と補題。
+Specification and lemmas for the strongly connected component decomposition.
 -/
 
 namespace SCC
 
-/-- 隣接リストが `n` 頂点のグラフとして整形式であること。 -/
+/-- The adjacency array is well formed as an `n`-vertex graph. -/
 def ValidInput (n : Nat) (g : Array (List Nat)) : Prop :=
   g.size = n ∧ ∀ u, u < n → ∀ v ∈ g[u]!, v < n
 
@@ -41,15 +41,16 @@ def ValidInput (n : Nat) (g : Array (List Nat)) : Prop :=
   rw [Nat.fold_eq_foldl_range, outer]
   simp
 
-/-- 孤立した各頂点はそれぞれ一つの強連結成分になる。 -/
+/-- Each isolated vertex forms a component of its own. -/
 example : scc 3 #[[], [], []] = [[2], [1], [0]] := by
   native_decide
 
-/-- 一つの有向閉路は一つの強連結成分になる。 -/
+/-- A single directed cycle forms one component. -/
 example : scc 3 #[[1], [2], [0]] = [[0, 2, 1]] := by
   native_decide
 
-/-- 複数成分を、成分間の辺に関するトポロジカル順で返す。 -/
+/-- Several components come back in topological order with respect to the edges
+between them. -/
 example : scc 6 #[[1], [0, 2], [3], [2], [5], []] =
     [[4], [5], [0, 1], [2, 3]] := by
   native_decide

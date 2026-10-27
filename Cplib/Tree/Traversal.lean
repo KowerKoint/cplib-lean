@@ -4,6 +4,7 @@ import Cplib.Tree.Traversal.Lemmas
 /-!
 # Tree.Traversal
 
-木の DFS と基本的な木 DP ユーティリティの実装と定理をまとめて読み込む集約モジュール。
-実装だけが必要な場合は `Cplib.Tree.Traversal.Basic` を直接 import するとよい。
+Aggregate module loading both the implementation and the theorems for the tree
+DFS and its tree-DP utilities. Import `Cplib.Tree.Traversal.Basic` directly
+when only the implementation is needed.
 -/

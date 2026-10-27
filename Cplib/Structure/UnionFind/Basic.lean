@@ -1,6 +1,30 @@
 import Cplib.Util.Unwrap.Basic
 
 namespace Cplib
+
+/-!
+# Structure.UnionFind.Basic
+
+A persistent union-find (disjoint-set union) over the vertices `0, …, n - 1`,
+with path compression and union by size.
+
+Because path compression rewrites the structure, every query **returns the
+updated state alongside its answer** and callers must thread it through:
+`let (root, uf) := uf.leader! v`. Discarding the returned state is correct but
+throws the compression away, and reusing an older state repeatedly forfeits the
+amortised bound.
+
+Costs, used linearly as above: `empty` is `O(n)`, `leader`, `same`, `size` and
+`merge` are `O(α(n))` amortised, and `groups` is `O(n α(n))`.
+
+```lean
+let uf := (UnionFind.empty 5).merge! 0 1 |>.merge! 3 4
+let (connected, uf) := uf.same! 0 1    -- true
+let (card, uf) := uf.size! 3           -- 2
+uf.groups.1                            -- #[#[0, 1], #[2], #[3, 4]]
+```
+-/
+
 /-- Persistent union-find (disjoint-set union) with path compression and union by size. -/
 structure UnionFind (n : Nat) where
   parent : Vector (Fin n) n
@@ -8,7 +32,7 @@ structure UnionFind (n : Nat) where
 
 namespace UnionFind
 
-/-- `n` singleton components. -/
+/-- `n` singleton components. `O(n)`. -/
 def empty (n : Nat) : UnionFind n where
   parent := Vector.ofFn id
   componentSize := Vector.replicate n 1
@@ -32,22 +56,26 @@ def leaderFuel (fuel : Nat) (self : UnionFind n) (a : Fin n) : Fin n × UnionFin
 
 end Impl
 
-/-- Representative of `a`, together with the state after path compression. -/
+/-- Representative of `a`, together with the state after path compression.
+`O(α(n))` amortised. -/
 def leader (self : UnionFind n) (a : Fin n) : Fin n × UnionFind n :=
   Impl.leaderFuel n self a
 
-/-- Whether `a` and `b` are connected, together with the compressed state. -/
+/-- Whether `a` and `b` lie in the same component, together with the compressed
+state. `O(α(n))` amortised. -/
 def same (self : UnionFind n) (a b : Fin n) : Bool × UnionFind n :=
   let (x, self) := self.leader a
   let (y, self) := self.leader b
   (x == y, self)
 
-/-- Component size of `a`, together with the compressed state. -/
+/-- Number of vertices in the component of `a`, together with the compressed
+state. `O(α(n))` amortised. -/
 def size (self : UnionFind n) (a : Fin n) : Nat × UnionFind n :=
   let (root, self) := self.leader a
   (self.componentSize[root], self)
 
-/-- Merge the components of `a` and `b` using union by size. -/
+/-- Merge the components of `a` and `b`, attaching the smaller under the larger.
+A no-op when they are already connected. `O(α(n))` amortised. -/
 def merge (self : UnionFind n) (a b : Fin n) : UnionFind n :=
   let (x, self) := self.leader a
   let (y, self) := self.leader b
@@ -61,40 +89,47 @@ def merge (self : UnionFind n) (a b : Fin n) : UnionFind n :=
       parent := self.parent.set y x
       componentSize := self.componentSize.set x (self.componentSize[x] + self.componentSize[y]) }
 
-/-- `leader` の範囲外安全版。`a < n` でなければ `none`。 -/
+/-- `leader` for a `Nat` vertex: `none` unless `a < n`. -/
 def leader? (self : UnionFind n) (a : Nat) : Option (Fin n × UnionFind n) :=
   if h : a < n then some (self.leader ⟨a, h⟩) else none
 
-/-- `leader` の無条件版。`a < n` でなければ停止する。
+/-- `leader` for a `Nat` vertex, reporting a panic unless `a < n` and then
+returning `(0, self)`. See `Cplib.unwrap!`: a panic does not stop the program.
 
-`n = 0` では `Fin n` の値が作れないため、代表元は `Nat` で返す。 -/
+The representative comes back as a `Nat` rather than a `Fin n`, because `Fin n`
+has no value to fall back on when `n = 0`. -/
 def leader! (self : UnionFind n) (a : Nat) : Nat × UnionFind n :=
   let _ : Inhabited (Nat × UnionFind n) := ⟨(0, self)⟩
   unwrap! "UnionFind.leader!" ((self.leader? a).map (fun (root, self) => (root.val, self)))
 
-/-- `same` の範囲外安全版。`a < n` かつ `b < n` でなければ `none`。 -/
+/-- `same` for `Nat` vertices: `none` unless both `a < n` and `b < n`. -/
 def same? (self : UnionFind n) (a b : Nat) : Option (Bool × UnionFind n) :=
   if h : a < n ∧ b < n then some (self.same ⟨a, h.1⟩ ⟨b, h.2⟩) else none
 
-/-- `same` の無条件版。`a < n` かつ `b < n` でなければ停止する。 -/
+/-- `same` for `Nat` vertices, reporting a panic unless both `a < n` and `b < n`
+and then returning `(false, self)`. See `Cplib.unwrap!`: a panic does not stop
+the program. -/
 def same! (self : UnionFind n) (a b : Nat) : Bool × UnionFind n :=
   let _ : Inhabited (Bool × UnionFind n) := ⟨(false, self)⟩
   unwrap! "UnionFind.same!" (self.same? a b)
 
-/-- `size` の範囲外安全版。`a < n` でなければ `none`。 -/
+/-- `size` for a `Nat` vertex: `none` unless `a < n`. -/
 def size? (self : UnionFind n) (a : Nat) : Option (Nat × UnionFind n) :=
   if h : a < n then some (self.size ⟨a, h⟩) else none
 
-/-- `size` の無条件版。`a < n` でなければ停止する。 -/
+/-- `size` for a `Nat` vertex, reporting a panic unless `a < n` and then returning
+`(0, self)`. See `Cplib.unwrap!`: a panic does not stop the program. -/
 def size! (self : UnionFind n) (a : Nat) : Nat × UnionFind n :=
   let _ : Inhabited (Nat × UnionFind n) := ⟨(0, self)⟩
   unwrap! "UnionFind.size!" (self.size? a)
 
-/-- `merge` の範囲外安全版。`a < n` かつ `b < n` でなければ `none`。 -/
+/-- `merge` for `Nat` vertices: `none` unless both `a < n` and `b < n`. -/
 def merge? (self : UnionFind n) (a b : Nat) : Option (UnionFind n) :=
   if h : a < n ∧ b < n then some (self.merge ⟨a, h.1⟩ ⟨b, h.2⟩) else none
 
-/-- `merge` の無条件版。`a < n` かつ `b < n` でなければ停止する。 -/
+/-- `merge` for `Nat` vertices, reporting a panic unless both `a < n` and `b < n`
+and then returning the structure unchanged. See `Cplib.unwrap!`: a panic does
+not stop the program. -/
 def merge! (self : UnionFind n) (a b : Nat) : UnionFind n :=
   let _ : Inhabited (UnionFind n) := ⟨self⟩
   unwrap! "UnionFind.merge!" (self.merge? a b)

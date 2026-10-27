@@ -4,6 +4,7 @@ import Cplib.Typical.LinearSearch.Lemmas
 /-!
 # Typical.LinearSearch
 
-上限付き線形探索の実装と定理をまとめて読み込む集約モジュール。
-実装だけが必要な場合は `Cplib.Typical.LinearSearch.Basic` を直接 import するとよい。
+Aggregate module loading both the implementation and the theorems for the
+bounded linear search. Import `Cplib.Typical.LinearSearch.Basic` directly when
+only the implementation is needed.
 -/

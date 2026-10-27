@@ -3,19 +3,21 @@ import Lean.Elab.Tactic.Omega
 /-!
 # Util.Fold.Lemmas
 
-添字ループを `List` 上の `foldl` に書き換えるための橋渡し補題。
+Bridging lemmas that rewrite an index loop back into a `foldl` over a `List`.
 
-実装側では確保を伴わない `Nat.fold` / `Fin.foldl` を使い、証明側ではこれらで
-`List` 上の `foldl` に戻してから既存の `List.foldl_cons` 流の帰納法を回す。
+Implementations use `Nat.fold` and `Fin.foldl`, which allocate nothing, while
+proofs convert back to a list and then run the usual `List.foldl_cons`
+induction.
 
-core には `Fin.foldl_eq_finRange_foldl` / `Fin.foldr_eq_finRange_foldr` /
-`Nat.fold_eq_finRange_foldl` / `Nat.foldRev_eq_finRange_foldr` があるので、
-ここでは `Nat.fold` と `List.range` を繋ぐものだけを補う。
+The core library already provides `Fin.foldl_eq_finRange_foldl`,
+`Fin.foldr_eq_finRange_foldr`, `Nat.fold_eq_finRange_foldl` and
+`Nat.foldRev_eq_finRange_foldr`, so only the link between `Nat.fold` and
+`List.range` is missing.
 -/
 
 namespace Nat
 
-/-- `Nat.fold` は `List.range` 上の `foldl` と一致する。 -/
+/-- `Nat.fold` agrees with `foldl` over `List.range`. -/
 theorem fold_eq_foldl_range {β : Type u} (n : Nat) (f : β → Nat → β) (init : β) :
     Nat.fold n (fun i _ acc => f acc i) init = (List.range n).foldl f init := by
   induction n generalizing init with

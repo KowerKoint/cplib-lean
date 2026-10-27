@@ -4,12 +4,13 @@ import Mathlib.Tactic
 /-!
 # Tree.Traversal.Lemmas
 
-木の DFS と基本的な木 DP ユーティリティの性質。
+Properties of the tree DFS and the tree-DP utilities built on it.
 -/
 
 namespace Cplib.Tree
 
-/-- 降下時と上昇時の更新が不変条件 `P` を保つなら、fuel 付き DFS も `P` を保つ。 -/
+/-- If both the descend and ascend updates preserve an invariant `P`, so does the
+fuel-bounded DFS. -/
 theorem Impl.dfs_preserves (g : Array (List Nat))
     (onDescend onAscend : α → Nat → Nat → α) (P : α → Prop)
     (hDescend : ∀ x u v, P x → P (onDescend x u v))
@@ -29,7 +30,8 @@ theorem Impl.dfs_preserves (g : Array (List Nat))
           · exact hx
           · exact hAscend _ _ _ (ihFuel _ _ _ (hDescend _ _ _ hx))
 
-/-- 降下時と上昇時の更新が不変条件 `P` を保つなら、`Cplib.Tree.dfs` も `P` を保つ。 -/
+/-- If both the descend and ascend updates preserve an invariant `P`, so does
+`Cplib.Tree.dfs`. -/
 theorem dfs_preserves (g : Array (List Nat)) (init : α) (root : Nat)
     (onDescend onAscend : α → Nat → Nat → α) (P : α → Prop)
     (hDescend : ∀ x u v, P x → P (onDescend x u v))
@@ -54,7 +56,8 @@ theorem dfs_preserves (g : Array (List Nat)) (init : α) (root : Nat)
   unfold height
   apply dfs_preserves (P := fun xs : Array Nat => xs.size = g.size) <;> simp
 
-/-- 分岐を含む木における DFS 順と基本的な木 DP の回帰テスト。 -/
+/-- Regression test for the DFS orders and the tree-DP utilities on a branching
+tree. -/
 example :
     let g := #[[1, 2], [0, 3], [0], [1]]
     preorder g = [0, 1, 3, 2] ∧

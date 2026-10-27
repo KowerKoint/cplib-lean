@@ -169,14 +169,15 @@ private def internalValid [Mul M] {cap : Nat} (data : Vector M (cap * 2)) : Prop
   ∀ i : Fin cap, i.val ≠ 0 →
     data[i.val] = data[i.val * 2] * data[i.val * 2 + 1]
 
-/-- `i` を根とする高さ `height` の完全二分部分木を、葉の順序で畳み込む。 -/
+/-- Fold the perfect binary subtree of height `height` rooted at `i`, in leaf order. -/
 private def nodeFold [Mul M] [One M] {cap : Nat} (data : Vector M (cap * 2))
     (i : Nat) : Nat → M
   | 0 => data.getD i 1
   | height + 1 =>
       nodeFold data (i * 2) height * nodeFold data (i * 2 + 1) height
 
-/-- 局所的な `internalValid` から、任意の完全二分部分木の根の意味を得る。 -/
+/-- From the local `internalValid` property, recover what the root of any perfect
+binary subtree stands for. -/
 private theorem nodeFold_eq_get [Mul M] [One M] {cap : Nat}
     (data : Vector M (cap * 2)) (hvalid : internalValid data)
     (height i : Nat) (hi0 : i ≠ 0)
@@ -595,7 +596,8 @@ example :
       tree.minLeft 0 (· ≤ 0) == 0 := by
   native_decide
 
-/-- `!` / `?` 版は範囲内では `Fin` 版と一致し、境界は `sz` (添字系は `sz - 1`)。 -/
+/-- In range, the `!` variants agree with the `Fin`-indexed originals; range bounds
+accept `sz` while position-like arguments accept at most `sz - 1`. -/
 example :
     let tree := ofArray #[2, 3, 5, 7]
     tree.get! 2 == 5 && tree.prod! 1 3 == 15 && (tree.set! 0 11).get! 0 == 11 &&

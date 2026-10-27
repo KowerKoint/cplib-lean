@@ -3,7 +3,26 @@ namespace Cplib
 /-!
 # Structure.Heap.Basic
 
-`Vector` ベースの二分ヒープ (優先度付きキュー) の実装。比較関数 `cmp` で順序を与える。
+A `Vector`-backed binary heap, ordered by a comparator carried in the structure.
+
+**This is a min-heap**: `top` is the element that `cmp` reports as smallest, and
+repeated `pop` yields elements in non-decreasing order. The default comparator
+is `compare`, so `Heap.empty` on an ordered type gives the usual min-heap. For a
+max-heap, pass the reversed comparator: `Heap.empty (fun a b => compare b a)`.
+
+`cmp` is expected to be a total preorder, that is, reflexive, transitive, and
+total in the sense that `(cmp a b).isLE` or `(cmp b a).isLE` holds for every
+pair. Nothing enforces this; a comparator that violates it simply produces an
+unspecified order.
+
+Costs, for a heap of `n` elements: `empty`, `size`, `isEmpty` and `top` are
+`O(1)`, `add` and `pop` are `O(log n)`, and `ofArray` is `O(n)`.
+
+```lean
+let h := Heap.ofArray #[5, 1, 4, 1, 3]
+h.top!            -- 1, the smallest element
+(h.pop!).top!     -- 1, the duplicate
+```
 -/
 
 structure Heap (α : Type) where
@@ -46,17 +65,18 @@ def modifyDown (heap : Heap α) (idx : Fin heap.n) : Heap α :=
   else heap
   termination_by heap.n - idx.toNat
   decreasing_by
-    · -- 両子がある場合: cmin = c1 (=2i+1) か c2 (=2i+2)。どちらも idx より大きい。
+    · -- Both children exist: cmin is c1 (= 2i+1) or c2 (= 2i+2), both above idx.
       split
       · show heap.n - (idx.toNat * 2 + 1) < heap.n - idx.toNat; omega
       · show heap.n - (idx.toNat * 2 + 2) < heap.n - idx.toNat; omega
-    · -- 左子のみの場合: c1 = 2i+1。
+    · -- Only the left child exists: c1 = 2i+1.
       show heap.n - (idx.toNat * 2 + 1) < heap.n - idx.toNat; omega
 
-/-- 添字 `k - 1` から `0` へ向かって順に `modifyDown` を適用する。
+/-- Sift down at indices `k - 1, k - 2, …, 0`, in that order.
 
-`k` に `n / 2` を渡すと全ての内部節点をボトムアップに整えることになり、
-ヒープ全体の構築が `O(n)` で済む。 -/
+Passing `n / 2` for `k` covers exactly the internal nodes, which restores the
+heap property bottom-up in `O(n)` rather than the `O(n log n)` of inserting one
+element at a time. -/
 def heapifyFrom : Heap α → Nat → Heap α
   | heap, 0 => heap
   | heap, k + 1 =>
@@ -65,27 +85,39 @@ def heapifyFrom : Heap α → Nat → Heap α
 
 end Impl
 
+/-- The empty heap. `cmp` defaults to `compare`, giving a min-heap. -/
 def empty (cmp : α → α → Ordering := by exact compare) : Heap α := ⟨0, Array.empty |>.toVector, cmp⟩
 
+/-- Number of elements. `O(1)`. -/
 @[inline] def size (heap : Heap α) : Nat := heap.n
 
+/-- Whether the heap holds no elements. `O(1)`. -/
 @[inline] def isEmpty (heap : Heap α) : Bool := heap.n == 0
 
+/-- Insert `x`. `O(log n)`. -/
 def add (heap : Heap α) (x : α) : Heap α :=
   let ndata := heap.data.push x
   Impl.modifyUp ⟨heap.n + 1, ndata, heap.cmp⟩ ⟨heap.n, Nat.lt_succ_self _⟩
 
-/-- 配列からヒープを構築する。
+/-- Build a heap holding every element of `xs`, ordered by `cmp`.
 
-末端から順に `modifyDown` するボトムアップ構築なので、計算量は `O(n)`。
-(要素を一つずつ `add` すると `O(n log n)` になる。) -/
+Bottom-up heapification, so `O(n)`; inserting the elements one by one would be
+`O(n log n)`. -/
 def ofArray (xs : Array α) (cmp : α → α → Ordering := by exact compare) : Heap α :=
   Impl.heapifyFrom ⟨xs.size, xs.toVector, cmp⟩ (xs.size / 2)
 
+/-- The smallest element under `cmp`. `O(1)`. -/
 def top (heap : Heap α) (h : 0 < heap.n) := heap.data[0]
+
+/-- `top` for a possibly empty heap. `O(1)`. -/
 def top? (heap : Heap α) : Option α := heap.data[0]?
+
+/-- `top` without the emptiness proof. Reports a panic on an empty heap and
+returns `default`; see `Cplib.unwrap!` on what a panic does and does not do.
+`O(1)`. -/
 def top! [Inhabited α] (heap : Heap α) : α := heap.data[0]!
 
+/-- Remove the smallest element. `O(log n)`. -/
 def pop (heap : Heap α) (h : 0 < heap.n) : Heap α :=
   let ndata := heap.data.swap 0 (heap.n - 1)
   let ndata := ndata.pop
@@ -93,9 +125,12 @@ def pop (heap : Heap α) (h : 0 < heap.n) : Heap α :=
     Impl.modifyDown ⟨heap.n - 1, ndata, heap.cmp⟩ ⟨0, h'⟩
   else
     ⟨heap.n - 1, ndata, heap.cmp⟩
+/-- `pop` for a possibly empty heap. `O(log n)`. -/
 def pop? (heap : Heap α) : Option <| Heap α :=
   if h : 0 < heap.n then some <| heap.pop h
   else none
+/-- `pop` without the emptiness proof. Reports a panic on an empty heap and
+returns the heap unchanged; see `Cplib.unwrap!`. `O(log n)`. -/
 def pop! (heap : Heap α) : Heap α :=
   let _ : Inhabited <| Heap α := ⟨heap⟩
   if h : 0 < heap.n then heap.pop h

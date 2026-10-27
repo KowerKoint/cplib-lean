@@ -4,5 +4,7 @@ import Cplib.Graph.SCC.Lemmas
 /-!
 # Graph.SCC
 
-強連結成分分解の実装と定理をまとめて読み込む集約モジュール。
+Aggregate module loading both the implementation and the theorems for the
+strongly connected component decomposition. Import `Cplib.Graph.SCC.Basic`
+directly when only the implementation is needed.
 -/

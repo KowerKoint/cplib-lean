@@ -3,6 +3,59 @@ import Cplib.Util.Unwrap.Basic
 
 namespace Cplib
 
+/-!
+# Structure.LazySegTree.Basic
+
+A segment tree with lazy propagation: range products over a monoid `M`, plus
+range application of actions drawn from a monoid `F`.
+
+`Mul M` must be associative with `One M` as its identity, and likewise for
+`Mul F` and `One F`. The action `SMul F M` must be a monoid action that
+distributes over the product:
+
+- `(f * g) • x = f • (g • x)` and `(1 : F) • x = x`, so that stacked pending
+  actions compose correctly;
+- `f • (x * y) = (f • x) * (f • y)` and `f • (1 : M) = 1`, so that an action
+  applied to a whole subtree agrees with applying it to each leaf.
+
+Nothing enforces these; violating them yields unspecified results rather than
+an error.
+
+Ranges are **half-open**, exactly as in `SegTree`: `prod l r` and
+`applyRange l r f` cover `[l, r)`, bounds accept `sz`, and position-like
+arguments accept up to `sz - 1`.
+
+Costs, for a tree of `sz` elements: `allProd` is `O(1)`, `ofArray` is `O(sz)`,
+and `prod`, `get`, `apply`, `applyRange`, `maxRight` and `minLeft` are
+`O(log sz)`. Note that `get` is `O(log sz)` here, unlike `SegTree.get`, because
+pending actions on the path have to be resolved.
+
+For range-add with range-sum, `M` carries a running sum alongside the length it
+covers, so that an action knows how many elements it is spread over, and `F` is
+the amount being added:
+
+```lean
+structure SumLen where
+  sum : Nat
+  len : Nat
+instance : Mul SumLen := ⟨fun x y => ⟨x.sum + y.sum, x.len + y.len⟩⟩
+instance : One SumLen := ⟨⟨0, 0⟩⟩
+
+structure AddTag where
+  value : Nat
+instance : Mul AddTag := ⟨fun f g => ⟨f.value + g.value⟩⟩
+instance : One AddTag := ⟨⟨0⟩⟩
+instance : SMul AddTag SumLen := ⟨fun f x => ⟨x.sum + f.value * x.len, x.len⟩⟩
+
+let t : LazySegTree SumLen AddTag :=
+  LazySegTree.ofArray #[⟨1, 1⟩, ⟨2, 1⟩, ⟨3, 1⟩, ⟨4, 1⟩, ⟨5, 1⟩]
+let t := t.applyRange! 1 4 ⟨10⟩   -- add 10 to positions 1, 2, 3
+t.prod! 0 5                        -- ⟨45, 5⟩, that is 15 + 3 * 10
+```
+
+`Cplib/Structure/LazySegTree/Lemmas.lean` exercises this instance further.
+-/
+
 structure LazySegTree (M F : Type) where
   sz : Nat
   cap : Nat
@@ -98,94 +151,111 @@ def minLeft {cap : Nat} (sz qr : Nat) (p : M → Bool) :
 
 end Impl
 
+/-- Build a tree whose position `i` holds `xs[i]`, with no pending action.
+`O(xs.size)`. -/
 def ofArray (xs : Array M) : LazySegTree M F :=
   let tree := SegTree.ofArray xs
   { tree with lazy := Vector.replicate (tree.cap * 2) 1 }
 
+/-- A tree of `n` copies of `One M`. `O(n)`. -/
 def replicate (n : Nat) : LazySegTree M F := ofArray (Array.replicate n 1)
 
+/-- Apply `f` to every position in the half-open range `[l, r)`. Both bounds may
+be `sz`, and `r ≤ l` is a no-op. `O(log sz)`. -/
 def applyRange (self : LazySegTree M F) (l r : Fin (self.sz + 1)) (f : F) :
     LazySegTree M F :=
   let (data, lazy) := Impl.applyRange f l r self.cap 1 0 self.cap self.data self.lazy
   { self with data, lazy }
 
+/-- Product over the half-open range `[l, r)`, left to right, with pending
+actions resolved. `r ≤ l` gives `One M`. `O(log sz)`. -/
 def prod (self : LazySegTree M F) (l r : Fin (self.sz + 1)) : M :=
   Impl.prod l r self.cap 1 0 self.cap 1 self.data self.lazy
 
-/-- Value at one position. -/
+/-- The value at position `i`, with pending actions resolved. `O(log sz)`. -/
 def get (self : LazySegTree M F) (i : Fin self.sz) : M :=
   self.prod ⟨i, by omega⟩ ⟨i + 1, by omega⟩
 
-/-- Apply an action to one position. -/
+/-- Apply `f` to position `i` alone. `O(log sz)`. -/
 def apply (self : LazySegTree M F) (i : Fin self.sz) (f : F) : LazySegTree M F :=
   self.applyRange ⟨i, by omega⟩ ⟨i + 1, by omega⟩ f
 
-/-- Product of the entire array. -/
+/-- Product of the entire array, that is `prod 0 sz`. `O(1)`. -/
 def allProd (self : LazySegTree M F) : M := self.data.getD 1 1
 
-/-- Largest `r` such that `p (prod l r)` remains true. Runs in `O(log n)` when
-`p` is monotone and `p 1 = true`. -/
+/-- The largest `r ≥ l` with `p (prod l r) = true`, or `l` itself when even the
+empty product fails `p`.
+
+Meaningful when `p` is downward closed along `r` and `p 1 = true`, and then
+`O(log sz)`; see `SegTree.maxRight`. -/
 def maxRight (self : LazySegTree M F) (l : Fin (self.sz + 1)) (p : M → Bool) : Nat :=
   (Impl.maxRight self.sz l p self.cap 1 0 self.cap 1 1 self.data self.lazy).1.getD self.sz
 
-/-- Smallest `l` such that `p (prod l r)` is true. Runs in `O(log n)` when
-`p` is monotone and `p 1 = true`. -/
+/-- The smallest `l ≤ r` with `p (prod l r) = true`, or `r` itself when even the
+empty product fails `p`. The mirror image of `maxRight`; `O(log sz)` under the
+same assumptions. -/
 def minLeft (self : LazySegTree M F) (r : Fin (self.sz + 1)) (p : M → Bool) : Nat :=
   (Impl.minLeft self.sz r p self.cap 1 0 self.cap 1 1 self.data self.lazy).1.getD 0
 
-/-- `applyRange` の範囲外安全版。`l ≤ sz` かつ `r ≤ sz` でなければ `none`。 -/
+/-- `applyRange` for `Nat` bounds: `none` unless both `l ≤ sz` and `r ≤ sz`. -/
 def applyRange? (self : LazySegTree M F) (l r : Nat) (f : F) : Option (LazySegTree M F) :=
   if h : l < self.sz + 1 ∧ r < self.sz + 1 then
     some (self.applyRange ⟨l, h.1⟩ ⟨r, h.2⟩ f)
   else none
 
-/-- `applyRange` の無条件版。`l ≤ sz` かつ `r ≤ sz` でなければ停止する。 -/
+/-- `applyRange` for `Nat` bounds, reporting a panic unless both `l ≤ sz` and `r ≤ sz` and then
+returning the tree unchanged. See `Cplib.unwrap!`: a panic does not stop the program. -/
 def applyRange! (self : LazySegTree M F) (l r : Nat) (f : F) : LazySegTree M F :=
   let _ : Inhabited (LazySegTree M F) := ⟨self⟩
   unwrap! "LazySegTree.applyRange!" (self.applyRange? l r f)
 
-/-- `prod` の範囲外安全版。`l ≤ sz` かつ `r ≤ sz` でなければ `none`。 -/
+/-- `prod` for `Nat` bounds: `none` unless both `l ≤ sz` and `r ≤ sz`. -/
 def prod? (self : LazySegTree M F) (l r : Nat) : Option M :=
   if h : l < self.sz + 1 ∧ r < self.sz + 1 then
     some (self.prod ⟨l, h.1⟩ ⟨r, h.2⟩)
   else none
 
-/-- `prod` の無条件版。`l ≤ sz` かつ `r ≤ sz` でなければ停止する。 -/
+/-- `prod` for `Nat` bounds, reporting a panic unless both `l ≤ sz` and `r ≤ sz` and then
+returning `One M`. See `Cplib.unwrap!`: a panic does not stop the program. -/
 def prod! (self : LazySegTree M F) (l r : Nat) : M :=
   let _ : Inhabited M := ⟨1⟩
   unwrap! "LazySegTree.prod!" (self.prod? l r)
 
-/-- `get` の範囲外安全版。`i < sz` でなければ `none`。 -/
+/-- `get` for `Nat` bounds: `none` unless `i < sz`. -/
 def get? (self : LazySegTree M F) (i : Nat) : Option M :=
   if h : i < self.sz then some (self.get ⟨i, h⟩) else none
 
-/-- `get` の無条件版。`i < sz` でなければ停止する。 -/
+/-- `get` for `Nat` bounds, reporting a panic unless `i < sz` and then
+returning `One M`. See `Cplib.unwrap!`: a panic does not stop the program. -/
 def get! (self : LazySegTree M F) (i : Nat) : M :=
   let _ : Inhabited M := ⟨1⟩
   unwrap! "LazySegTree.get!" (self.get? i)
 
-/-- `apply` の範囲外安全版。`i < sz` でなければ `none`。 -/
+/-- `apply` for `Nat` bounds: `none` unless `i < sz`. -/
 def apply? (self : LazySegTree M F) (i : Nat) (f : F) : Option (LazySegTree M F) :=
   if h : i < self.sz then some (self.apply ⟨i, h⟩ f) else none
 
-/-- `apply` の無条件版。`i < sz` でなければ停止する。 -/
+/-- `apply` for `Nat` bounds, reporting a panic unless `i < sz` and then
+returning the tree unchanged. See `Cplib.unwrap!`: a panic does not stop the program. -/
 def apply! (self : LazySegTree M F) (i : Nat) (f : F) : LazySegTree M F :=
   let _ : Inhabited (LazySegTree M F) := ⟨self⟩
   unwrap! "LazySegTree.apply!" (self.apply? i f)
 
-/-- `maxRight` の範囲外安全版。`l ≤ sz` でなければ `none`。 -/
+/-- `maxRight` for `Nat` bounds: `none` unless `l ≤ sz`. -/
 def maxRight? (self : LazySegTree M F) (l : Nat) (p : M → Bool) : Option Nat :=
   if h : l < self.sz + 1 then some (self.maxRight ⟨l, h⟩ p) else none
 
-/-- `maxRight` の無条件版。`l ≤ sz` でなければ停止する。 -/
+/-- `maxRight` for `Nat` bounds, reporting a panic unless `l ≤ sz` and then
+returning `0`. See `Cplib.unwrap!`: a panic does not stop the program. -/
 def maxRight! (self : LazySegTree M F) (l : Nat) (p : M → Bool) : Nat :=
   unwrap! "LazySegTree.maxRight!" (self.maxRight? l p)
 
-/-- `minLeft` の範囲外安全版。`r ≤ sz` でなければ `none`。 -/
+/-- `minLeft` for `Nat` bounds: `none` unless `r ≤ sz`. -/
 def minLeft? (self : LazySegTree M F) (r : Nat) (p : M → Bool) : Option Nat :=
   if h : r < self.sz + 1 then some (self.minLeft ⟨r, h⟩ p) else none
 
-/-- `minLeft` の無条件版。`r ≤ sz` でなければ停止する。 -/
+/-- `minLeft` for `Nat` bounds, reporting a panic unless `r ≤ sz` and then
+returning `0`. See `Cplib.unwrap!`: a panic does not stop the program. -/
 def minLeft! (self : LazySegTree M F) (r : Nat) (p : M → Bool) : Nat :=
   unwrap! "LazySegTree.minLeft!" (self.minLeft? r p)
 

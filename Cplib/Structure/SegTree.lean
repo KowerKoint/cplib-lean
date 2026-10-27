@@ -4,6 +4,7 @@ import Cplib.Structure.SegTree.Lemmas
 /-!
 # Structure.SegTree
 
-`SegTree` の実装と定理をまとめて読み込む集約モジュール。
-実装だけが必要な場合は `Cplib.Structure.SegTree.Basic` を直接 import するとよい。
+Aggregate module loading both the implementation and the theorems for
+`SegTree`. Import `Cplib.Structure.SegTree.Basic` directly when only the
+implementation is needed.
 -/

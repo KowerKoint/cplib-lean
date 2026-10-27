@@ -3,15 +3,30 @@ namespace Cplib
 /-!
 # Typical.LinearSearch.Basic
 
-上限付きの線形探索。述語が単調な場合は `Cplib.bisectMinBelow` が `O(log n)` で
-同じ答えを返すので、こちらは単調でない述語のためにある。
+Bounded linear search for the first index satisfying a predicate.
+
+This exists for predicates that are **not** monotone. When `p` does turn from
+false to true exactly once, `Cplib.bisectMinBelow` answers the same question in
+`O(log n)` instead.
+
+The core library offers nothing for this: there is no `Nat.find`,
+`Nat.findSome?` or `Fin.find`, `Std.Iterators` has producers and combinators
+but no `find?` consumer, and `Nat.any` reports whether a witness exists but not
+which one. Mathlib's `Nat.find` additionally demands a proof of `∃ n, p n`.
+
+```lean
+findMinBelow 10 (fun i => i.val * i.val > 20)   -- 5
+findMinBelow 10 (fun i => i.val > 100)          -- 10, that is, not found
+```
 -/
 
 namespace Impl
 
-/-- `findMinBelow` の内部実装。`i` から順に `p` を試し、`n` に達したら `n` を返す。
+/-- Implementation behind `findMinBelow`. Tries `p` at `i`, `i + 1`, … and
+returns `n` on reaching it.
 
-境界判定は一度だけで、`fuel` 引数は持たない (反復あたりの分岐を増やさないため)。 -/
+There is no fuel argument: the bound doubles as the termination measure, so each
+iteration performs a single comparison rather than two. -/
 @[specialize] def findMinFrom (n : Nat) (p : Fin n → Bool) (i : Nat) : Nat :=
   if h : i < n then
     if p ⟨i, h⟩ then i else findMinFrom n p (i + 1)
@@ -21,10 +36,11 @@ decreasing_by omega
 
 end Impl
 
-/-- `p` を満たす最小の `x < n`。存在しなければ `n` を返す。
+/-- The least `x < n` with `p x = true`, or `n` when there is none.
 
-`0, 1, …, n - 1` の順に調べ、最初に見つかった時点で打ち切る。確保は行わない。
-`p` が単調 (false から true へ一度だけ変化) なら `bisectMinBelow` のほうが速い。 -/
+Tries `0, 1, …, n - 1` in order and stops at the first hit, allocating nothing.
+`O(n)` worst case, times the cost of `p`. Prefer `bisectMinBelow` when `p` is
+monotone. -/
 @[inline] def findMinBelow (n : Nat) (p : Fin n → Bool) : Nat :=
   Impl.findMinFrom n p 0
 

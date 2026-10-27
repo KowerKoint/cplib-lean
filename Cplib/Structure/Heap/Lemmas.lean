@@ -7,23 +7,24 @@ namespace Cplib
 /-!
 # Structure.Heap.Lemmas
 
-`Structure.Heap.Basic` の二分ヒープに関する基本的な仕様。
+Specification of the binary heap in `Structure.Heap.Basic`.
 -/
 
 namespace Heap
 
 variable {α : Type}
 
-/-- 比較器が表す非狭義順序。 -/
+/-- The non-strict order the comparator stands for. -/
 def LE (heap : Heap α) (x y : α) : Prop :=
   (heap.cmp x y).isLE
 
-/-- 各頂点の値がその親の値以上である、最小ヒープ条件。 -/
+/-- The min-heap property: every node is at least its parent under `cmp`. -/
 def Valid (heap : Heap α) : Prop :=
   ∀ i : Fin heap.n, i.val ≠ 0 →
     heap.LE (heap.data.get ⟨(i.val - 1) / 2, by omega⟩) (heap.data.get i)
 
-/-- `Valid` なヒープの根は、比較器が表す順序で全要素以下である。 -/
+/-- In a `Valid` heap the root is at most every element under `cmp`, so `top` really
+is the minimum. -/
 theorem top_le (heap : Heap α) (hvalid : heap.Valid)
     (hrefl : Reflexive heap.LE) (htrans : Transitive heap.LE)
     (hpos : 0 < heap.n) (i : Fin heap.n) :
@@ -167,7 +168,7 @@ theorem ofArray_data_perm [BEq α] [LawfulBEq α]
   simp [pop]
   split <;> simp
 
-/-- `pop` は `top` を一つ取り除き、それ以外の要素を保存する。 -/
+/-- `pop` removes one occurrence of `top` and keeps every other element. -/
 theorem pop_data_perm [BEq α] [LawfulBEq α] (heap : Heap α) (h : 0 < heap.n) :
     ((heap.pop h).data.toList ++ [heap.top h]).Perm heap.data.toList := by
   let last : Fin heap.n := ⟨heap.n - 1, by omega⟩
@@ -222,7 +223,8 @@ decreasing_by
   rw [pop_n]
   omega
 
-/-- 一括構築と反復 `pop` が、重複を保って優先度順に要素を返す回帰テスト。 -/
+/-- Regression test: building in bulk and popping repeatedly yields the elements in
+non-decreasing order, duplicates included. -/
 example : drainNat (ofArray #[5, 1, 4, 1, 3]) = [1, 1, 3, 4, 5] := by
   native_decide
 

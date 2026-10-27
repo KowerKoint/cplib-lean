@@ -709,7 +709,8 @@ private instance : One AddTag := ⟨⟨0⟩⟩
 private instance : SMul AddTag SumLen :=
   ⟨fun f x => ⟨x.sum + f.value * x.len, x.len⟩⟩
 
-/-- 区間加算・区間和で、作用の合成順、重なる更新、部分区間問い合わせを確認する。 -/
+/-- Range-add and range-sum, checking how stacked actions compose, how overlapping
+updates interact, and that sub-range queries agree. -/
 example :
     let xs : Array SumLen := #[⟨1, 1⟩, ⟨2, 1⟩, ⟨3, 1⟩, ⟨4, 1⟩, ⟨5, 1⟩]
     let tree : LazySegTree SumLen AddTag := ofArray xs

@@ -1,11 +1,33 @@
 /-!
 # IO.Basic
 
-競技プログラミング向けの標準入出力ユーティリティ。
+Standard input and output helpers for competitive programming.
+
+Input is read **a line at a time**: `readString` and everything built on it
+consume exactly one line, and the `read*List` family then splits that line on
+spaces. So a problem whose input puts one value per line calls `readNat`
+repeatedly, while one that puts several on a line calls `readNats2` or
+`readNatArray`.
+
+The `expect*` helpers raise `IO.userError` when a line does not hold exactly
+the requested number of values, so a malformed input fails loudly rather than
+silently.
+
+Reading is line-buffered rather than slurped up front, which keeps these usable
+for interactive problems.
+
+```lean
+def main : IO Unit := do
+  let (n, m) ← readNats2
+  let g ← readGraph n m          -- m edges, 1-indexed by default
+  let xs ← readNatArray          -- one line of n numbers
+  printArray xs
+```
 -/
 
 namespace Cplib
 
+/-- Read one line, with trailing whitespace removed. -/
 def readString : IO String := do
   let stdin ← IO.getStdin
   let line ← stdin.getLine
@@ -14,6 +36,7 @@ def readString : IO String := do
 def readNat : IO Nat := readString |>.map String.toNat!
 def readInt : IO Int := readString |>.map String.toInt!
 
+/-- Read one line and split it on spaces. -/
 def readStringList : IO (List String) := readString |>.map (fun s => s.splitOn)
 def readNatList : IO (List Nat) := readStringList |>.map (List.map String.toNat!)
 def readIntList : IO (List Int) := readStringList |>.map (List.map String.toInt!)
@@ -37,32 +60,32 @@ private def expect4 (name : String) (xs : List α) : IO (α × α × α × α) :
   | [a, b, c, d] => return (a, b, c, d)
   | _ => throw <| IO.userError s!"{name}: expected 4 values, got {xs.length}"
 
-/-- 一行から空白区切りでちょうど 2 個の文字列を読む。 -/
+/-- Read exactly 2 space-separated strings from one line. -/
 def readStrings2 : IO (String × String) := readStringList >>= expect2 "readStrings2"
 
-/-- 一行から空白区切りでちょうど 3 個の文字列を読む。 -/
+/-- Read exactly 3 space-separated strings from one line. -/
 def readStrings3 : IO (String × String × String) := readStringList >>= expect3 "readStrings3"
 
-/-- 一行から空白区切りでちょうど 4 個の文字列を読む。 -/
+/-- Read exactly 4 space-separated strings from one line. -/
 def readStrings4 : IO (String × String × String × String) :=
   readStringList >>= expect4 "readStrings4"
 
-/-- 一行から空白区切りでちょうど 2 個の自然数を読む。 -/
+/-- Read exactly 2 space-separated natural numbers from one line. -/
 def readNats2 : IO (Nat × Nat) := readNatList >>= expect2 "readNats2"
 
-/-- 一行から空白区切りでちょうど 3 個の自然数を読む。 -/
+/-- Read exactly 3 space-separated natural numbers from one line. -/
 def readNats3 : IO (Nat × Nat × Nat) := readNatList >>= expect3 "readNats3"
 
-/-- 一行から空白区切りでちょうど 4 個の自然数を読む。 -/
+/-- Read exactly 4 space-separated natural numbers from one line. -/
 def readNats4 : IO (Nat × Nat × Nat × Nat) := readNatList >>= expect4 "readNats4"
 
-/-- 一行から空白区切りでちょうど 2 個の整数を読む。 -/
+/-- Read exactly 2 space-separated integers from one line. -/
 def readInts2 : IO (Int × Int) := readIntList >>= expect2 "readInts2"
 
-/-- 一行から空白区切りでちょうど 3 個の整数を読む。 -/
+/-- Read exactly 3 space-separated integers from one line. -/
 def readInts3 : IO (Int × Int × Int) := readIntList >>= expect3 "readInts3"
 
-/-- 一行から空白区切りでちょうど 4 個の整数を読む。 -/
+/-- Read exactly 4 space-separated integers from one line. -/
 def readInts4 : IO (Int × Int × Int × Int) := readIntList >>= expect4 "readInts4"
 
 def readStringRowList (n : Nat) : IO (List String) :=
@@ -101,7 +124,9 @@ def readNatMatrix (n : Nat) : IO (Array (Array Nat)) :=
 def readIntMatrix (n : Nat) : IO (Array (Array Int)) :=
   Array.range n |>.mapM (fun _ => readIntArray)
 
-/-- `n` 頂点 `m` 辺の無向グラフを読み、隣接リストを返す。 -/
+/-- Read `m` undirected edges over `n` vertices, one per line, and return the
+adjacency list. `offset` is subtracted from every endpoint, so the default of
+`1` converts the usual 1-indexed input to 0-indexed vertices. -/
 def readGraph (n m : Nat) (offset : Nat := 1) : IO (Array (List Nat)) :=
   Nat.foldM m (fun _ _ g => do
     let (a, b) ← readNats2

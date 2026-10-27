@@ -41,14 +41,15 @@ example :
       (tree.add ⟨2, by decide⟩ 10).get ⟨2, by decide⟩ == 14 := by
   native_decide
 
-/-- `!` 版は範囲内では `Fin` 版と一致する。 -/
+/-- In range, the `!` variants agree with the `Fin`-indexed originals. -/
 example :
     let tree := ofArray #[3, 1, 4, 1, 5]
     tree.prefixSum! 4 == 9 && tree.sum! 1 4 == 6 &&
       (tree.add! 2 10).get! 2 == 14 := by
   native_decide
 
-/-- `?` 版の境界。`prefixSum` と `sum` は `n` まで、`add` と `get` は `n - 1` まで。 -/
+/-- Where the `?` variants stop: `prefixSum` and `sum` accept `n`, while `add`
+and `get` accept at most `n - 1`. -/
 example :
     let tree := ofArray #[3, 1, 4, 1, 5]
     (tree.prefixSum? 5).isSome && (tree.prefixSum? 6).isNone &&

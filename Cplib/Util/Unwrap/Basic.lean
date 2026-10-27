@@ -3,20 +3,32 @@ namespace Cplib
 /-!
 # Util.Unwrap.Basic
 
-`!` 版 API の共通実装。
+Shared implementation of the `!` API variants.
 
-このライブラリでは、添字を `Fin` で受ける関数それぞれに次の2つを用意する:
+Every function in this library that indexes with `Fin` comes with two
+`Nat`-indexed companions:
 
-- `foo? : … → Nat → Option _` … 範囲外なら `none`
-- `foo! : … → Nat → _` … 範囲外なら停止する
+- `foo? : … → Nat → Option _` returns `none` when the index is out of range.
+- `foo! : … → Nat → _` reports the bad index and keeps going.
 
-`foo!` は `foo?` の薄いラッパとして `unwrap!` で書く。
+`foo!` is a thin wrapper around `foo?` written with `unwrap!`.
 -/
 
-/-- `o` が `none` なら、添字が範囲外だったとして `name` を添えて停止する。
+/-- Unwrap `o`, reporting `name` when it is `none` because an index was out of
+range.
 
-メッセージの組み立ては `none` の枝に入ってからしか起きないので、
-正常系に文字列生成のコストは乗らない。 -/
+**This does not stop the program.** Lean's `panic!` writes a message and a
+backtrace to stderr and then returns the `Inhabited` default, so execution
+continues with that value and the exit code is unaffected. An out-of-range
+index therefore surfaces as a loud wrong answer rather than a crash: visible
+when running locally, invisible to a judge that discards stderr. Reach for the
+`?` variant whenever the caller should handle the out-of-range case itself.
+
+This matches `Array.get!` and `Array.set!` in the core library, which panic the
+same way.
+
+The message is built only in the `none` branch, so the in-range path pays
+nothing for it. -/
 @[inline] def unwrap! [Inhabited α] (name : String) : Option α → α
   | some x => x
   | none => panic! s!"{name}: index out of bounds"

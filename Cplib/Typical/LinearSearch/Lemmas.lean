@@ -3,8 +3,9 @@ import Mathlib.Tactic
 
 namespace Cplib
 
-/-- `findMinFrom` の完全仕様。`i + fuel = n` を保って呼ぶ前提で、結果は
-`[i, n]` に収まり、`i` 以上その手前までは `p` を満たさず、`n` 未満なら `p` を満たす。 -/
+/-- Full specification of `findMinFrom`: the result lies in `[i, max i n]`, no
+index from `i` up to it satisfies `p`, and the result itself satisfies `p`
+whenever it is below `n`. -/
 theorem Impl.findMinFrom_spec (n : Nat) (p : Fin n → Bool) (i : Nat) :
     i ≤ Impl.findMinFrom n p i ∧ Impl.findMinFrom n p i ≤ max i n
       ∧ (∀ j : Fin n, i ≤ j.val → j.val < Impl.findMinFrom n p i → ¬p j)
@@ -38,17 +39,18 @@ theorem Impl.findMinFrom_spec (n : Nat) (p : Fin n → Bool) (i : Nat) :
 theorem findMinBelow_le (n : Nat) (p : Fin n → Bool) : findMinBelow n p ≤ n := by
   simpa using (Impl.findMinFrom_spec n p 0).2.1
 
-/-- 手前の添字はどれも `p` を満たさない。 -/
+/-- No index before the result satisfies `p`, so the result really is the least
+one. -/
 theorem findMinBelow_not_of_lt (n : Nat) (p : Fin n → Bool) (i : Fin n)
     (h : i.val < findMinBelow n p) : ¬p i :=
   (Impl.findMinFrom_spec n p 0).2.2.1 i (Nat.zero_le _) h
 
-/-- `n` 未満を返したなら、その添字は `p` を満たす。 -/
+/-- A result below `n` does satisfy `p`. -/
 theorem findMinBelow_sat (n : Nat) (p : Fin n → Bool) (h : findMinBelow n p < n) :
     p ⟨findMinBelow n p, h⟩ :=
   (Impl.findMinFrom_spec n p 0).2.2.2 h
 
-/-- `n` が返るのは、`p` を満たす添字が一つも無いとき、かつそのときに限る。 -/
+/-- `n` comes back exactly when no index satisfies `p`. -/
 theorem findMinBelow_eq_iff (n : Nat) (p : Fin n → Bool) :
     findMinBelow n p = n ↔ ∀ i : Fin n, ¬p i := by
   constructor
@@ -63,7 +65,7 @@ theorem findMinBelow_eq_iff (n : Nat) (p : Fin n → Bool) :
 example : findMinBelow 10 (fun i => i.val * i.val > 20) = 5 := by native_decide
 example : findMinBelow 10 (fun i => i.val > 100) = 10 := by native_decide
 example : findMinBelow 0 (fun _ => true) = 0 := by native_decide
-/-- 単調でない述語でも最小の添字を返す。 -/
+/-- The least index is found even when `p` is not monotone. -/
 example : findMinBelow 10 (fun i => i.val == 7 || i.val == 3) = 3 := by native_decide
 
 end Cplib

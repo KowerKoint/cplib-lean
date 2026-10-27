@@ -1,14 +1,30 @@
 /-!
 # Tree.Traversal.Basic
 
-双方向隣接リストで表された木の DFS と、基本的な木 DP ユーティリティ。
+Depth-first search on a tree given as a bidirectional adjacency list, plus the
+usual tree-DP utilities built on it.
+
+Every vertex of an `n`-vertex tree appears as an index into `g`, so `g.size`
+must be `n` and every neighbour must be below it. The search is bounded by
+`g.size`, so a malformed input still terminates, but it may then visit a vertex
+more than once.
+
+All of `dfs`, `preorder`, `postorder`, `subtreeSize`, `depth` and `height` are
+`O(n)`.
+
+```lean
+let g := #[[1, 2], [0], [0, 3], [2]]   -- 0—1, 0—2, 2—3
+Tree.preorder g       -- [0, 1, 2, 3]
+Tree.subtreeSize g    -- #[4, 1, 2, 1]
+Tree.depth g          -- #[0, 1, 1, 2]
+```
 -/
 
 namespace Cplib.Tree
 
 namespace Impl
 
-/-- `Cplib.Tree.dfs` の fuel 付き内部実装。 -/
+/-- Fuel-bounded implementation behind `Cplib.Tree.dfs`. -/
 def dfs (g : Array (List Nat))
     (onDescend onAscend : α → Nat → Nat → α) :
     Nat → α → Nat → Nat → α
@@ -24,14 +40,16 @@ def dfs (g : Array (List Nat))
 
 end Impl
 
-/-- 双方向隣接リスト `g` で表された木を `root` から深さ優先探索する。
+/-- Depth-first search from `root` over the tree given by the bidirectional
+adjacency list `g`.
 
-`onDescend state parent child` は子部分木へ入る直前、
-`onAscend state parent child` は子部分木から戻った直後に呼ばれる。
+`onDescend state parent child` runs just before entering a child subtree and
+`onAscend state parent child` just after returning from it, so a value threaded
+through both sees each edge twice, once in each direction.
 
-`root < g.size` であり、各隣接先が `g.size` 未満で、`g` が連結な無向木を
-表すことを要求する。この条件を満たさない場合も `g.size` を fuel として停止するが、
-同じ頂点を複数回訪問することがある。
+Requires `root < g.size`, every neighbour below `g.size`, and `g` to describe a
+connected undirected tree. Violating that still terminates, since `g.size`
+bounds the recursion, but a vertex may then be visited more than once. `O(n)`.
 -/
 def dfs
     (g : Array (List Nat))
@@ -41,27 +59,31 @@ def dfs
     (onAscend : α → Nat → Nat → α := fun x _ _ => x) : α :=
   Impl.dfs g onDescend onAscend g.size init root g.size
 
-/-- `root` から DFS したときの行きがけ順。 -/
+/-- Vertices in the order a DFS from `root` first reaches them (pre-order).
+`O(n)`. -/
 def preorder (g : Array (List Nat)) (root := 0) : List Nat :=
   dfs g [root] (root := root) (onDescend := fun res _ v => v :: res) |>.reverse
 
-/-- `root` から DFS したときの帰りがけ順。 -/
+/-- Vertices in the order a DFS from `root` finishes them (post-order). `O(n)`. -/
 def postorder (g : Array (List Nat)) (root := 0) : List Nat :=
   dfs g [] (root := root) (onAscend := fun res _ v => v :: res) |> (root :: ·) |>.reverse
 
-/-- `root` で根付き木としたときの、各頂点の部分木の頂点数。 -/
+/-- Number of vertices in each subtree, with the tree rooted at `root`. The root's
+entry is the whole vertex count. `O(n)`. -/
 def subtreeSize (g : Array (List Nat)) (root := 0) : Array Nat :=
   dfs g (root := root) (Array.replicate g.size 1) (onAscend := fun res u v =>
     let szv := res[v]!
     res.modify u (· + szv))
 
-/-- `root` で根付き木としたときの、`root` から各頂点までの距離。 -/
+/-- Number of edges from `root` to each vertex, with the tree rooted at `root`.
+The root's entry is `0`. `O(n)`. -/
 def depth (g : Array (List Nat)) (root := 0) : Array Nat :=
   dfs g (root := root) (Array.replicate g.size 0) (onDescend := fun res u v =>
     let du := res[u]!
     res.set! v (du + 1))
 
-/-- `root` で根付き木としたときの、各頂点を根とする部分木の高さ。 -/
+/-- Height of each subtree, with the tree rooted at `root`, measured in edges so
+that a leaf has height `0`. `O(n)`. -/
 def height (g : Array (List Nat)) (root := 0) : Array Nat :=
   dfs g (root := root) (Array.replicate g.size 0) (onAscend := fun res u v =>
     let hv := res[v]!

@@ -3,6 +3,32 @@ import Cplib.Util.Unwrap.Basic
 
 namespace Cplib
 
+/-!
+# Structure.SegTree.Basic
+
+A segment tree over a monoid, supporting point updates and range products.
+
+`Mul M` must be associative with `One M` as its identity; `One M` is also what
+the padding beyond `sz` holds and what out-of-range queries return, so it has to
+be a genuine identity for the results to mean anything. The product is **not**
+assumed commutative, and `prod l r` multiplies left to right.
+
+Ranges are **half-open**: `prod l r` covers `[l, r)`, so `prod 0 sz` is the
+total, also available as `allProd`. Range bounds accept `sz` itself, while
+position-like arguments such as `get` and `set` accept up to `sz - 1`.
+
+Costs, for a tree of `sz` elements: `get` and `allProd` are `O(1)`, `set` and
+`prod` are `O(log sz)`, `ofArray` is `O(sz)`, and `maxRight` and `minLeft` are
+`O(log sz)` when `p` is monotone (see their own documentation).
+
+```lean
+let t : SegTree Nat := SegTree.ofArray #[2, 3, 5, 7]   -- product monoid
+t.prod! 1 3        -- 15, that is 3 * 5
+t.allProd          -- 210
+(t.set! 0 11).get! 0  -- 11
+```
+-/
+
 structure SegTree (M : Type) where
   sz : Nat
   cap : Nat
@@ -84,6 +110,7 @@ def minLeft (self : SegTree M) (p : M → Bool) (qr : Nat) :
           | (none, acc) => minLeft self p qr fuel (i * 2) l mid acc
 end Impl
 
+/-- Build a tree whose position `i` holds `a[i]`. `O(a.size)`. -/
 def ofArray (a : Array M) : SegTree M :=
   let sz := a.size
   let cap := sz.nextPowerOfTwo
@@ -95,76 +122,96 @@ def ofArray (a : Array M) : SegTree M :=
   let data := Fin.foldr cap (fun i dat => dat.set i (dat[i.val * 2] * dat[i.val * 2 + 1])) dataLeaf
   ⟨sz, cap, sz_le, cap_pos, cap_pow2, data⟩
 
+/-- A tree of `n` copies of `One M`. `O(n)`. -/
 def replicate (n : Nat) : SegTree M :=
   ofArray <| Array.replicate n 1
 
+/-- The value at position `i`. `O(1)`. -/
 def get (self : SegTree M) (i : Fin self.sz) : M :=
   self.data[self.cap + i]'(by
     have hi := i.isLt
     have hs := self.sz_le
     omega)
 
+/-- `get` for a `Nat` index: `none` unless `i < sz`. -/
 def get? (self : SegTree M) (i : Nat) : Option M :=
   if hi : i < self.sz then some (get self ⟨i, hi⟩) else none
 
-/-- `get` の無条件版。`i < sz` でなければ停止する。 -/
+/-- `get` for a `Nat` index, reporting a panic unless `i < sz` and then returning
+`One M`. See `Cplib.unwrap!`: a panic does not stop the program. `O(1)`. -/
 def get! (self : SegTree M) (i : Nat) : M :=
   let _ : Inhabited M := ⟨1⟩
   unwrap! "SegTree.get!" (self.get? i)
 
+/-- Replace the value at position `i` with `x`. `O(log sz)`. -/
 def set (self : SegTree M) (i : Fin self.sz) (x : M) : SegTree M :=
   { self with data := Impl.setData self i x }
 
-/-- `set` の範囲外安全版。`i < sz` でなければ `none`。 -/
+/-- `set` for a `Nat` index: `none` unless `i < sz`. -/
 def set? (self : SegTree M) (i : Nat) (x : M) : Option (SegTree M) :=
   if hi : i < self.sz then some (self.set ⟨i, hi⟩ x) else none
 
-/-- `set` の無条件版。`i < sz` でなければ停止する。 -/
+/-- `set` for a `Nat` index, reporting a panic unless `i < sz` and then returning
+the tree unchanged. See `Cplib.unwrap!`: a panic does not stop the program. -/
 def set! (self : SegTree M) (i : Nat) (x : M) : SegTree M :=
   let _ : Inhabited (SegTree M) := ⟨self⟩
   unwrap! "SegTree.set!" (self.set? i x)
 
+/-- Product over the half-open range `[l, r)`, left to right. Both bounds may be
+`sz`, and `r ≤ l` gives `One M`. `O(log sz)`. -/
 def prod (self : SegTree M) (l r : Fin (self.sz + 1)) : M :=
   if l ≥ r then 1
   else Impl.prod self 1 0 self.cap l.val r.val
 
-/-- `prod` の範囲外安全版。`l ≤ sz` かつ `r ≤ sz` でなければ `none`。 -/
+/-- `prod` for `Nat` bounds: `none` unless both `l ≤ sz` and `r ≤ sz`. -/
 def prod? (self : SegTree M) (l r : Nat) : Option M :=
   if h : l < self.sz + 1 ∧ r < self.sz + 1 then
     some (self.prod ⟨l, h.left⟩ ⟨r, h.right⟩)
   else none
 
-/-- `prod` の無条件版。`l ≤ sz` かつ `r ≤ sz` でなければ停止する。 -/
+/-- `prod` for `Nat` bounds, reporting a panic unless both `l ≤ sz` and `r ≤ sz`
+and then returning `One M`. See `Cplib.unwrap!`: a panic does not stop the
+program. -/
 def prod! (self : SegTree M) (l r : Nat) : M :=
   let _ : Inhabited M := ⟨1⟩
   unwrap! "SegTree.prod!" (self.prod? l r)
 
-/-- Product of the entire array. -/
+/-- Product of the entire array, that is `prod 0 sz`. `O(1)`. -/
 def allProd (self : SegTree M) : M := self.data.getD 1 1
 
-/-- Largest `r` such that `p (prod l r)` remains true. Runs in `O(log n)` when
-`p` is monotone and `p 1 = true`. -/
+/-- The largest `r ≥ l` with `p (prod l r) = true`, or `l` itself when even the
+empty product fails `p`.
+
+Meaningful when `p` is downward closed along `r`, that is, once `p` turns false
+it stays false as the range grows, and `p 1 = true`. Under those assumptions it
+runs in `O(log sz)`; for an arbitrary `p` the answer is some `r` the descent
+happened to reach. -/
 def maxRight (self : SegTree M) (l : Fin (self.sz + 1)) (p : M → Bool) : Nat :=
   (Impl.maxRight self p l self.cap 1 0 self.cap 1).1.getD self.sz
 
-/-- Smallest `l` such that `p (prod l r)` is true. Runs in `O(log n)` when
-`p` is monotone and `p 1 = true`. -/
+/-- The smallest `l ≤ r` with `p (prod l r) = true`, or `r` itself when even the
+empty product fails `p`.
+
+The mirror image of `maxRight`: meaningful when `p` is downward closed as the
+range grows leftwards and `p 1 = true`, and then `O(log sz)`. -/
 def minLeft (self : SegTree M) (r : Fin (self.sz + 1)) (p : M → Bool) : Nat :=
   (Impl.minLeft self p r self.cap 1 0 self.cap 1).1.getD 0
 
-/-- `maxRight` の範囲外安全版。`l ≤ sz` でなければ `none`。 -/
+/-- `maxRight` for a `Nat` bound: `none` unless `l ≤ sz`. -/
 def maxRight? (self : SegTree M) (l : Nat) (p : M → Bool) : Option Nat :=
   if h : l < self.sz + 1 then some (self.maxRight ⟨l, h⟩ p) else none
 
-/-- `maxRight` の無条件版。`l ≤ sz` でなければ停止する。 -/
+/-- `maxRight` for a `Nat` bound, reporting a panic unless `l ≤ sz` and then
+returning `0`. See `Cplib.unwrap!`: a panic does not stop the program. -/
 def maxRight! (self : SegTree M) (l : Nat) (p : M → Bool) : Nat :=
   unwrap! "SegTree.maxRight!" (self.maxRight? l p)
 
-/-- `minLeft` の範囲外安全版。`r ≤ sz` でなければ `none`。 -/
+/-- `minLeft` for a `Nat` bound: `none` unless `r ≤ sz`. -/
 def minLeft? (self : SegTree M) (r : Nat) (p : M → Bool) : Option Nat :=
   if h : r < self.sz + 1 then some (self.minLeft ⟨r, h⟩ p) else none
 
-/-- `minLeft` の無条件版。`r ≤ sz` でなければ停止する。 -/
+/-- `minLeft` for a `Nat` bound, reporting a panic unless `r ≤ sz` and then
+returning `0`. See `Cplib.unwrap!`: a panic does not stop the program. -/
 def minLeft! (self : SegTree M) (r : Nat) (p : M → Bool) : Nat :=
   unwrap! "SegTree.minLeft!" (self.minLeft? r p)
 end SegTree

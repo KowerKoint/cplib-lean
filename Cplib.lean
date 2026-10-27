@@ -26,19 +26,42 @@ import Cplib.Structure.UnionFind
 /-!
 # Cplib
 
-競技プログラミング向けのアルゴリズム / データ構造ライブラリ。
-Lean 4.22.0 (AtCoder と同一) でビルドできるモジュールをここに集約する。
+A library of algorithms and data structures for competitive programming,
+collecting the modules that build under Lean 4.22.0, the version AtCoder uses.
 
-ファイル構成は `Std` / `Batteries` の慣習に倣う:
+## Module layout
 
-- `Cplib.<分類>.<名前>.Basic` … 実装。他の `Basic` のみに依存し、`Mathlib` は引かない。
-- `Cplib.<分類>.<名前>.Lemmas` … 定理。`Basic` と証明用の依存 (`Mathlib` 等) を import する。
-- `Cplib.<分類>.<名前>` … 上記をまとめて読み込む集約モジュール (このルートが import するもの)。
+The file layout follows the `Std` and `Batteries` convention:
 
-実装だけを軽く使いたい場合 (AtCoder 提出など) は `...Basic` を直接 import すると、
-`Lemmas` (および `Mathlib`) を引かずにビルドできる。
+- `Cplib.<area>.<name>.Basic` — the implementation. Depends only on other
+  `Basic` modules and never pulls in `Mathlib`.
+- `Cplib.<area>.<name>.Lemmas` — the theorems. Imports `Basic` together with
+  whatever the proofs need, `Mathlib` included.
+- `Cplib.<area>.<name>` — the aggregate module loading both, which is what this
+  root imports.
 
-ライブラリ固有の公開 API は `Cplib` 名前空間に置く。既存型への拡張は、
-`Nat.midpoint` や `Array.lowerBound` のようにその型の名前空間に置く。
+To use an implementation on its own, for instance when submitting to AtCoder,
+import the `...Basic` module directly; it builds without `Lemmas`, and so
+without `Mathlib`.
+
+## Naming
+
+Public API specific to this library lives in the `Cplib` namespace. Extensions
+to existing types live in that type's namespace instead, as `Nat.midpoint` and
+`Array.lowerBound` do.
+
+## Indexing conventions
+
+Ranges are half-open throughout: `[l, r)` includes `l` and excludes `r`, so a
+range bound may equal the length while a position may not.
+
+A function that indexes with `Fin` comes with two `Nat`-indexed companions:
+
+- `foo?` returns `none` when the index is out of range;
+- `foo!` reports the bad index through `Cplib.unwrap!` and keeps going.
+
+A Lean panic writes to stderr and returns a default rather than stopping the
+program, so `foo!` turns a bad index into a loud wrong answer, not a crash.
+Reach for `foo?` whenever the caller should handle the out-of-range case.
 
 -/

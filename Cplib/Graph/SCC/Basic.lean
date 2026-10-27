@@ -3,18 +3,30 @@ namespace Cplib
 /-!
 # Graph.SCC.Basic
 
-Kosaraju 法による強連結成分分解。
-頂点は `0, ..., n - 1` で表し、隣接リスト中の頂点もこの範囲にあることを仮定する。
+Decomposition into strongly connected components by Kosaraju's algorithm.
+
+Vertices are `0, …, n - 1`, and the adjacency array is expected to satisfy
+`g.size = n` with every listed neighbour below `n`. A malformed input still
+terminates, because the searches are bounded by the vertex count, but the
+components it returns are unspecified.
+
+`scc` is `O(n + E)` for `E` edges in total.
+
+```lean
+scc 6 #[[1], [0, 2], [3], [2], [5], []]
+-- [[4], [5], [0, 1], [2, 3]], components in topological order
+```
 -/
 
 namespace SCC
 
 namespace Impl
 
-/-- 深さ優先探索を行い、帰りがけ順を逆順で `order` に追加する。
+/-- Depth-first search, prepending vertices to `order` in reverse post-order.
 
-`fuel` は再帰の深さを制限する。頂点数を渡し、訪問済み頂点へ再帰しないことで、
-正しい入力上では探索を打ち切らない。
+`fuel` bounds the recursion depth. Passing the vertex count, together with never
+recursing into a visited vertex, means the search is never cut short on a
+well-formed input.
 -/
 def dfsPostOrderRev (fuel : Nat) (g : Array (List Nat))
     (seen : Array Bool) (order : List Nat) (u : Nat) : Array Bool × List Nat :=
@@ -36,10 +48,10 @@ def reverseGraph (n : Nat) (g : Array (List Nat)) : Array (List Nat) :=
 
 end Impl
 
-/-- `n` 頂点のグラフを強連結成分に分解する。
+/-- Decompose an `n`-vertex graph into its strongly connected components.
 
-返される成分は、成分間の辺に関するトポロジカル順に並ぶ。
-`g.size = n` かつ全ての隣接先が `n` 未満であることを要求する。
+The components come back in topological order with respect to the edges between
+them. Requires `g.size = n` and every neighbour below `n`. `O(n + E)`.
 -/
 def scc (n : Nat) (g : Array (List Nat)) : List (List Nat) :=
   let (_, postOrderRev) := Nat.fold n (fun u _ (seen, order) =>

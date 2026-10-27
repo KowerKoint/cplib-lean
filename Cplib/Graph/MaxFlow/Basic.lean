@@ -1,6 +1,33 @@
 import Cplib.Util.Unwrap.Basic
 
 namespace Cplib
+
+/-!
+# Graph.MaxFlow.Basic
+
+Maximum flow on a directed network over the vertices `0, …, n - 1`, by Dinic's
+algorithm.
+
+The network is persistent: `addEdge` and the flow routines return a new value
+rather than mutating, and every edge keeps the **stable ID** that `addEdge`
+handed out, so `edge?` and `edges` can report its current flow afterwards.
+
+Capacities are `Nat`. Running `flow` twice sends the maximum flow once and then
+nothing, since the second call works on the already-saturated residual network.
+
+Costs, with `V = n` vertices and `E` inserted edges: `addEdge` is `O(1)`,
+`edges` is `O(E)`, `minCut` is `O(V + E)`, and `flow` is `O(V² E)` in general,
+improving to `O(E √V)` on unit capacities.
+
+```lean
+let g := MaxFlow.empty 4
+let (_, g) := g.addEdge! 0 1 2
+let (_, g) := g.addEdge! 1 3 2
+let (amount, g) := g.flow! 0 3    -- 2
+g.minCut! 0                        -- vertices reachable from 0 afterwards
+```
+-/
+
 /-- A residual edge used internally by Dinic's algorithm. -/
 structure MaxFlow.ResidualEdge (n : Nat) where
   target : Fin n
@@ -25,7 +52,8 @@ namespace MaxFlow
 
 def empty (n : Nat) : MaxFlow n := ⟨Vector.replicate n [], #[], #[]⟩
 
-/-- Add a directed edge and return its stable ID. -/
+/-- Add a directed edge from `source` to `target` with the given capacity, and
+return its stable ID. `O(1)`. -/
 def addEdge (self : MaxFlow n) (source target : Fin n) (capacity : Nat) : Nat × MaxFlow n :=
   let edgeId := self.original.size
   let forwardId := self.residual.size
@@ -35,15 +63,19 @@ def addEdge (self : MaxFlow n) (source target : Fin n) (capacity : Nat) : Nat ×
   let adjacency := adjacency.set target (reverseId :: adjacency[target])
   (edgeId, ⟨adjacency, residual, self.original.push (source, target, capacity)⟩)
 
+/-- Current state of the edge with the given ID, or `none` when no such edge was
+inserted. `O(1)`. -/
 def edge? (self : MaxFlow n) (edgeId : Nat) : Option (EdgeInfo n) := do
   let (source, target, capacity) ← self.original[edgeId]?
   let residual ← self.residual[edgeId * 2]?
   pure ⟨source, target, capacity, capacity - residual.capacity⟩
 
+/-- Current state of every inserted edge, in insertion order. `O(E)`. -/
 def edges (self : MaxFlow n) : Array (EdgeInfo n) :=
   (Array.range self.original.size).filterMap self.edge?
 
-/-- Replace the capacity and current flow of an inserted edge. -/
+/-- Replace the capacity and current flow of an inserted edge. `flow` must not
+exceed `capacity`. `O(1)`. -/
 def changeEdge (self : MaxFlow n) (edgeId : Fin self.original.size)
     (capacity : Nat) (flow : Fin (capacity + 1)) : MaxFlow n :=
   let (source, target, _) := self.original[edgeId]
@@ -132,11 +164,13 @@ def blockingFlow (levels : Array Nat) (source sink : Fin n) (limit : Nat)
 
 end Impl
 
-/-- Sum of inserted capacities, used as a finite upper bound for unrestricted flow. -/
+/-- Sum of inserted capacities, used as a finite upper bound for unrestricted
+flow. `O(E)`. -/
 def totalCapacity (self : MaxFlow n) : Nat :=
   self.original.foldl (fun total edge => total + edge.2.2) 0
 
-/-- Send at most `limit` additional units from `source` to `sink`. -/
+/-- Send at most `limit` further units from `source` to `sink`, returning how
+much was sent together with the updated network. `O(V² E)`. -/
 def flowUpTo (self : MaxFlow n) (source sink : Fin n) (limit : Nat) :
     Nat × MaxFlow n :=
   let rec loop : Nat → Nat → MaxFlow n → Nat × MaxFlow n
@@ -152,68 +186,82 @@ def flowUpTo (self : MaxFlow n) (source sink : Fin n) (limit : Nat) :
             else loop phases (total + pushed) self
   if source = sink then (0, self) else loop (n + 1) 0 self
 
-/-- Send the maximum possible additional flow from `source` to `sink`. -/
+/-- Send as much further flow from `source` to `sink` as the network allows.
+`O(V² E)`, improving to `O(E √V)` on unit capacities. -/
 def flow (self : MaxFlow n) (source sink : Fin n) : Nat × MaxFlow n :=
   self.flowUpTo source sink self.totalCapacity
 
-/-- Vertices reachable from `source` in the current residual network. -/
+/-- Vertices reachable from `source` in the current residual network. After a
+saturating `flow`, this is the source side of a minimum cut. `O(V + E)`. -/
 def minCut (self : MaxFlow n) (source : Fin n) : Vector Bool n :=
   let levels := Impl.levels self source
   Vector.ofFn fun i => levels.getD i n ≠ n
 
-/-- `addEdge` の範囲外安全版。`source < n` かつ `target < n` でなければ `none`。 -/
+/-- `addEdge` for `Nat` vertices: `none` unless both `source < n` and
+`target < n`. -/
 def addEdge? (self : MaxFlow n) (source target : Nat) (capacity : Nat) :
     Option (Nat × MaxFlow n) :=
   if h : source < n ∧ target < n then
     some (self.addEdge ⟨source, h.1⟩ ⟨target, h.2⟩ capacity)
   else none
 
-/-- `addEdge` の無条件版。`source < n` かつ `target < n` でなければ停止する。 -/
+/-- `addEdge` for `Nat` vertices, reporting a panic unless both `source < n` and
+`target < n` and then returning `(0, self)`. See `Cplib.unwrap!`: a panic does
+not stop the program. -/
 def addEdge! (self : MaxFlow n) (source target : Nat) (capacity : Nat) : Nat × MaxFlow n :=
   let _ : Inhabited (Nat × MaxFlow n) := ⟨(0, self)⟩
   unwrap! "MaxFlow.addEdge!" (self.addEdge? source target capacity)
 
-/-- `changeEdge` の範囲外安全版。`edgeId` が既存の辺を指し、`flow ≤ capacity`
-でなければ `none`。 -/
+/-- `changeEdge` for `Nat` arguments: `none` unless `edgeId` names an inserted
+edge and `flow ≤ capacity`. -/
 def changeEdge? (self : MaxFlow n) (edgeId : Nat) (capacity flow : Nat) :
     Option (MaxFlow n) :=
   if h : edgeId < self.original.size ∧ flow < capacity + 1 then
     some (self.changeEdge ⟨edgeId, h.1⟩ capacity ⟨flow, h.2⟩)
   else none
 
-/-- `changeEdge` の無条件版。上の条件を満たさなければ停止する。 -/
+/-- `changeEdge` for `Nat` arguments, reporting a panic unless those conditions
+hold and then returning the network unchanged. See `Cplib.unwrap!`: a panic does
+not stop the program. -/
 def changeEdge! (self : MaxFlow n) (edgeId : Nat) (capacity flow : Nat) : MaxFlow n :=
   let _ : Inhabited (MaxFlow n) := ⟨self⟩
   unwrap! "MaxFlow.changeEdge!" (self.changeEdge? edgeId capacity flow)
 
-/-- `flowUpTo` の範囲外安全版。`source < n` かつ `sink < n` でなければ `none`。 -/
+/-- `flowUpTo` for `Nat` vertices: `none` unless both `source < n` and
+`sink < n`. -/
 def flowUpTo? (self : MaxFlow n) (source sink : Nat) (limit : Nat) :
     Option (Nat × MaxFlow n) :=
   if h : source < n ∧ sink < n then
     some (self.flowUpTo ⟨source, h.1⟩ ⟨sink, h.2⟩ limit)
   else none
 
-/-- `flowUpTo` の無条件版。`source < n` かつ `sink < n` でなければ停止する。 -/
+/-- `flowUpTo` for `Nat` vertices, reporting a panic unless both `source < n` and
+`sink < n` and then returning `(0, self)`. See `Cplib.unwrap!`: a panic does not
+stop the program. -/
 def flowUpTo! (self : MaxFlow n) (source sink : Nat) (limit : Nat) : Nat × MaxFlow n :=
   let _ : Inhabited (Nat × MaxFlow n) := ⟨(0, self)⟩
   unwrap! "MaxFlow.flowUpTo!" (self.flowUpTo? source sink limit)
 
-/-- `flow` の範囲外安全版。`source < n` かつ `sink < n` でなければ `none`。 -/
+/-- `flow` for `Nat` vertices: `none` unless both `source < n` and `sink < n`. -/
 def flow? (self : MaxFlow n) (source sink : Nat) : Option (Nat × MaxFlow n) :=
   if h : source < n ∧ sink < n then
     some (self.flow ⟨source, h.1⟩ ⟨sink, h.2⟩)
   else none
 
-/-- `flow` の無条件版。`source < n` かつ `sink < n` でなければ停止する。 -/
+/-- `flow` for `Nat` vertices, reporting a panic unless both `source < n` and
+`sink < n` and then returning `(0, self)`. See `Cplib.unwrap!`: a panic does not
+stop the program. -/
 def flow! (self : MaxFlow n) (source sink : Nat) : Nat × MaxFlow n :=
   let _ : Inhabited (Nat × MaxFlow n) := ⟨(0, self)⟩
   unwrap! "MaxFlow.flow!" (self.flow? source sink)
 
-/-- `minCut` の範囲外安全版。`source < n` でなければ `none`。 -/
+/-- `minCut` for a `Nat` vertex: `none` unless `source < n`. -/
 def minCut? (self : MaxFlow n) (source : Nat) : Option (Vector Bool n) :=
   if h : source < n then some (self.minCut ⟨source, h⟩) else none
 
-/-- `minCut` の無条件版。`source < n` でなければ停止する。 -/
+/-- `minCut` for a `Nat` vertex, reporting a panic unless `source < n` and then
+returning an all-`false` vector. See `Cplib.unwrap!`: a panic does not stop the
+program. -/
 def minCut! (self : MaxFlow n) (source : Nat) : Vector Bool n :=
   let _ : Inhabited (Vector Bool n) := ⟨Vector.replicate n false⟩
   unwrap! "MaxFlow.minCut!" (self.minCut? source)

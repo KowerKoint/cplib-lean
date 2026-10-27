@@ -3,6 +3,31 @@ import Cplib.Util.Unwrap.Basic
 
 namespace Cplib
 
+/-!
+# Graph.MinCostFlow.Basic
+
+Minimum-cost flow on a directed network over the vertices `0, …, n - 1`, by
+successive shortest paths with Johnson potentials and Dijkstra.
+
+**Inserted edge costs must be nonnegative.** The potentials keep the reduced
+costs nonnegative so that Dijkstra stays applicable; a negative input cost
+breaks that invariant and the result is unspecified.
+
+As in `MaxFlow` the network is persistent, and every edge keeps the stable ID
+that `addEdge` handed out so `edge?` and `edges` can report its current flow.
+`flow` and `flowUpTo` return `(flow, cost)` together with the updated network.
+
+Costs, with `V = n` vertices, `E` inserted edges and `F` units actually sent:
+`addEdge` is `O(1)`, `edges` is `O(E)`, and `flow` is `O(F E log V)`.
+
+```lean
+let g := MinCostFlow.empty 3
+let (_, g) := g.addEdge! 0 1 2 5       -- capacity 2, cost 5 per unit
+let (_, g) := g.addEdge! 1 2 2 3
+let ((amount, cost), g) := g.flow! 0 2  -- (2, 16)
+```
+-/
+
 structure MinCostFlow.ResidualEdge (n : Nat) where
   target : Fin n
   reverse : Nat
@@ -26,9 +51,12 @@ structure MinCostFlow (n : Nat) where
 
 namespace MinCostFlow
 
+/-- A network over `n` vertices with no edges. `O(n)`. -/
 def empty (n : Nat) : MinCostFlow n :=
   ⟨Vector.replicate n [], #[], #[], Vector.replicate n 0⟩
 
+/-- Add a directed edge with the given capacity and per-unit cost, and return its
+stable ID. `O(1)`. -/
 def addEdge (self : MinCostFlow n) (source target : Fin n)
     (capacity cost : Nat) : Nat × MinCostFlow n :=
   let edgeId := self.original.size
@@ -43,11 +71,14 @@ def addEdge (self : MinCostFlow n) (source target : Fin n)
     adjacency, residual
     original := self.original.push (source, target, capacity, cost) })
 
+/-- Current state of the edge with the given ID, or `none` when no such edge was
+inserted. `O(1)`. -/
 def edge? (self : MinCostFlow n) (edgeId : Nat) : Option (EdgeInfo n) := do
   let (source, target, capacity, cost) ← self.original[edgeId]?
   let residual ← self.residual[edgeId * 2]?
   pure ⟨source, target, capacity, capacity - residual.capacity, cost⟩
 
+/-- Current state of every inserted edge, in insertion order. `O(E)`. -/
 def edges (self : MinCostFlow n) : Array (EdgeInfo n) :=
   (Array.range self.original.size).filterMap self.edge?
 
@@ -137,10 +168,14 @@ def augment (self : MinCostFlow n) (previous : Array Nat) (source sink : Fin n)
 
 end Impl
 
+/-- Sum of inserted capacities, used as a finite upper bound for unrestricted
+flow. `O(E)`. -/
 def totalCapacity (self : MinCostFlow n) : Nat :=
   self.original.foldl (fun total edge => total + edge.2.2.1) 0
 
-/-- Send up to `limit` units, returning `(flow, cost)` and the updated network. -/
+/-- Send at most `limit` further units from `source` to `sink` along cheapest
+paths, returning `(flow, cost)` and the updated network. `O(F E log V)` for `F`
+units sent. -/
 def flowUpTo (self : MinCostFlow n) (source sink : Fin n) (limit : Nat) :
     (Nat × Int) × MinCostFlow n :=
   let rec loop : Nat → Nat → Int → MinCostFlow n → (Nat × Int) × MinCostFlow n
@@ -162,45 +197,54 @@ def flowUpTo (self : MinCostFlow n) (source sink : Fin n) (limit : Nat) :
   if source = sink then ((0, 0), self)
   else loop (self.totalCapacity + 1) 0 0 self
 
-/-- Minimum cost of the maximum additional flow. -/
+/-- Send as much further flow from `source` to `sink` as the network allows, at
+minimum total cost, returning `(flow, cost)` and the updated network. -/
 def flow (self : MinCostFlow n) (source sink : Fin n) :
     (Nat × Int) × MinCostFlow n :=
   self.flowUpTo source sink self.totalCapacity
 
-/-- `addEdge` の範囲外安全版。`source < n` かつ `target < n` でなければ `none`。 -/
+/-- `addEdge` for `Nat` vertices: `none` unless both `source < n` and
+`target < n`. -/
 def addEdge? (self : MinCostFlow n) (source target : Nat) (capacity cost : Nat) :
     Option (Nat × MinCostFlow n) :=
   if h : source < n ∧ target < n then
     some (self.addEdge ⟨source, h.1⟩ ⟨target, h.2⟩ capacity cost)
   else none
 
-/-- `addEdge` の無条件版。`source < n` かつ `target < n` でなければ停止する。 -/
+/-- `addEdge` for `Nat` vertices, reporting a panic unless both `source < n` and
+`target < n` and then returning `(0, self)`. See `Cplib.unwrap!`: a panic does
+not stop the program. -/
 def addEdge! (self : MinCostFlow n) (source target : Nat) (capacity cost : Nat) :
     Nat × MinCostFlow n :=
   let _ : Inhabited (Nat × MinCostFlow n) := ⟨(0, self)⟩
   unwrap! "MinCostFlow.addEdge!" (self.addEdge? source target capacity cost)
 
-/-- `flowUpTo` の範囲外安全版。`source < n` かつ `sink < n` でなければ `none`。 -/
+/-- `flowUpTo` for `Nat` vertices: `none` unless both `source < n` and
+`sink < n`. -/
 def flowUpTo? (self : MinCostFlow n) (source sink : Nat) (limit : Nat) :
     Option ((Nat × Int) × MinCostFlow n) :=
   if h : source < n ∧ sink < n then
     some (self.flowUpTo ⟨source, h.1⟩ ⟨sink, h.2⟩ limit)
   else none
 
-/-- `flowUpTo` の無条件版。`source < n` かつ `sink < n` でなければ停止する。 -/
+/-- `flowUpTo` for `Nat` vertices, reporting a panic unless both `source < n` and
+`sink < n` and then returning `((0, 0), self)`. See `Cplib.unwrap!`: a panic
+does not stop the program. -/
 def flowUpTo! (self : MinCostFlow n) (source sink : Nat) (limit : Nat) :
     (Nat × Int) × MinCostFlow n :=
   let _ : Inhabited ((Nat × Int) × MinCostFlow n) := ⟨((0, 0), self)⟩
   unwrap! "MinCostFlow.flowUpTo!" (self.flowUpTo? source sink limit)
 
-/-- `flow` の範囲外安全版。`source < n` かつ `sink < n` でなければ `none`。 -/
+/-- `flow` for `Nat` vertices: `none` unless both `source < n` and `sink < n`. -/
 def flow? (self : MinCostFlow n) (source sink : Nat) :
     Option ((Nat × Int) × MinCostFlow n) :=
   if h : source < n ∧ sink < n then
     some (self.flow ⟨source, h.1⟩ ⟨sink, h.2⟩)
   else none
 
-/-- `flow` の無条件版。`source < n` かつ `sink < n` でなければ停止する。 -/
+/-- `flow` for `Nat` vertices, reporting a panic unless both `source < n` and
+`sink < n` and then returning `((0, 0), self)`. See `Cplib.unwrap!`: a panic
+does not stop the program. -/
 def flow! (self : MinCostFlow n) (source sink : Nat) : (Nat × Int) × MinCostFlow n :=
   let _ : Inhabited ((Nat × Int) × MinCostFlow n) := ⟨((0, 0), self)⟩
   unwrap! "MinCostFlow.flow!" (self.flow? source sink)

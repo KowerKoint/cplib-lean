@@ -3,4 +3,4 @@ import Cplib.Graph.MinCostFlow
 import Cplib.Graph.SCC
 import Cplib.Graph.TwoSAT
 
-/-! グラフアルゴリズムの集約モジュール。 -/
+/-! Aggregate module for the graph algorithms. -/
