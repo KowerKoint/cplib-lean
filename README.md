@@ -85,6 +85,26 @@ xdg-open .lake/build/doc/Cplib.html   # 各モジュールは Cplib/<Name>.html
 スクリプトはローカルのソースリンクを生成し、依存パッケージの互換性調整も行う。
 初回は doc-gen4 本体もビルドするため時間がかかる。
 
+生成対象は `Cplib` のモジュールだけなので、`Init` / `Lean` / `Mathlib` の宣言への
+リンクには実体が無い。`scripts/link-external-docs.py` がそれらを
+[mathlib4_docs](https://leanprover-community.github.io/mathlib4_docs/) に向け直す。
+同サイトは Mathlib master 追従でモジュール構成がずれているため、パスではなく
+宣言名で解決する。`--base-url` でリンク先を差し替えられる。
+
+## 宣言の所属モジュールを調べる
+
+`#whereis` は、ドキュメントサイトではなく**このパッケージが固定している環境**に
+宣言の所属モジュールを問い合わせる。mathlib4_docs は Mathlib master のものなので、
+v4.22.0 と比べると、上流に残っている宣言のうち 7.3% がモジュールを移動している。
+
+```sh
+./scripts/whereis.sh Nat.isPowerOfTwo     # Nat.isPowerOfTwo — Init.Data.Nat.Power2
+./scripts/whereis.sh -s nextPowerOfTwo    # 名前の部分一致で列挙
+```
+
+1 回あたり Mathlib の読み込みで 10 秒ほどかかる。続けて何度も引くときは
+`scripts/WhereIs.lean` をエディタで開き、末尾に `#whereis` を書く方が速い。
+
 ## ライセンス
 
 [MIT License](LICENSE)
