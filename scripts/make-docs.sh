@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
-# ローカルで API ドキュメントを生成する (doc-gen4)。
+# Generate the API documentation (doc-gen4).
 #
-# この環境では doc-gen4 の依存 `UnicodeBasic` が `precompileModules := true` の場合に
-# 外部 C シンボル (unicode_case_lookup) を解決できず、各モジュールの .so 読み込みに失敗する。
-# そのため doc ビルド前に precompileModules を無効化する (lake update で戻るため都度適用)。
+# In this environment doc-gen4's dependency `UnicodeBasic` cannot resolve the
+# external C symbol `unicode_case_lookup` when `precompileModules := true`, so
+# loading each module's `.so` fails.  Disabling precompilation before the doc
+# build works around it, and has to be reapplied after every `lake update`.
 #
-# また、git リモートを前提とする GitHub ソースリンクの代わりに、ローカルの file:// リンクを使う
-# (DOCGEN_SRC=file)。GitHub Pages 等で公開する際は DOCGEN_SRC=github と git remote 設定に切り替える。
+# Source links point at GitHub when DOCGEN_SRC=github and at local `file://`
+# paths otherwise, which is the useful default when reading the docs locally.
+# DOCGEN_EXTERNAL_BASE names the site that hosts the libraries this one builds
+# on; see scripts/link-external-docs.py.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -47,6 +50,12 @@ done < <(find Cplib -type f -name '*.lean' -print | LC_ALL=C sort; printf '%s\n'
 
 "$DOCGEN" index --build "$ROOT/.lake/build"
 
+# Those skipped modules are still linked to from the generated pages, so send
+# every link that has no page here to a site that does host one.
+python3 "$ROOT/scripts/link-external-docs.py" "$DOC_DIR" \
+  --cache "$ROOT/.lake/build/declaration-data-external.bmp" \
+  ${DOCGEN_EXTERNAL_BASE:+--base-url "$DOCGEN_EXTERNAL_BASE"}
+
 echo
-echo "ドキュメントを生成しました: $ROOT/.lake/build/doc/index.html"
-echo "  例: xdg-open $ROOT/.lake/build/doc/Cplib.html"
+echo "Generated the documentation at $ROOT/.lake/build/doc/index.html"
+echo "  for instance: xdg-open $ROOT/.lake/build/doc/Cplib.html"

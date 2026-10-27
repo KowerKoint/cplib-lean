@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 
-IMPORT_RE = re.compile(r"^[ \t]*import[ \t]+(.+?)[ \t]*(?:--.*)?$")
+IMPORT_RE = re.compile(r"import[ \t]+(\S+)")
 MODULE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_'.]*(?:\.[A-Za-z_][A-Za-z0-9_']*)*$")
 DEFAULT_SOURCE_URL = "https://github.com/KowerKoint/cplib-lean"
 
@@ -18,19 +18,57 @@ class BundleError(Exception):
     pass
 
 
+def skip_comment(source: str, start: int, path: Path) -> int:
+    """Return the offset just past the comment beginning at `start`."""
+    if source.startswith("--", start):
+        end = source.find("\n", start)
+        return len(source) if end < 0 else end + 1
+    depth = 0
+    index = start
+    while index < len(source):
+        if source.startswith("/-", index):
+            depth += 1
+            index += 2
+        elif source.startswith("-/", index):
+            depth -= 1
+            index += 2
+            if depth == 0:
+                return index
+        else:
+            index += 1
+    line_number = source.count("\n", 0, start) + 1
+    raise BundleError(f"unterminated block comment at {path}:{line_number}")
+
+
 def split_imports(source: str, path: Path) -> tuple[list[str], str]:
-    """Return imported modules and source with import commands removed."""
+    """Return imported modules and source with import commands removed.
+
+    Lean accepts `import` only in the header, ahead of the first real command,
+    so the scan stops once one is reached.  Comments are skipped as comments
+    rather than matched line by line, which keeps a docstring whose text
+    happens to begin with the word `import` from being read as one.
+    """
     modules: list[str] = []
     body: list[str] = []
-    for line_number, line in enumerate(source.splitlines(keepends=True), 1):
-        match = IMPORT_RE.match(line.rstrip("\r\n"))
-        if match is None:
-            body.append(line)
-            continue
-        names = match.group(1).split()
-        if not names or any(MODULE_RE.fullmatch(name) is None for name in names):
-            raise BundleError(f"unsupported import syntax at {path}:{line_number}: {line.rstrip()}")
-        modules.extend(names)
+    index = 0
+    while index < len(source):
+        if source[index].isspace():
+            body.append(source[index])
+            index += 1
+        elif source.startswith("--", index) or source.startswith("/-", index):
+            end = skip_comment(source, index, path)
+            body.append(source[index:end])
+            index = end
+        elif (match := IMPORT_RE.match(source, index)) is not None:
+            name = match.group(1)
+            if MODULE_RE.fullmatch(name) is None:
+                line_number = source.count("\n", 0, index) + 1
+                raise BundleError(f"unsupported import syntax at {path}:{line_number}: {name}")
+            modules.append(name)
+            index = match.end()
+        else:
+            break
+    body.append(source[index:])
     return modules, "".join(body)
 
 
