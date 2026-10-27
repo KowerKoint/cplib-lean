@@ -1,110 +1,130 @@
 # Cplib
 
-競技プログラミング (AtCoder 等) 向けのアルゴリズム / データ構造ライブラリ。
-実装に加えて、可能なものは Lean 4 で正しさの定理証明を与えることを目指す。
+A library of algorithms and data structures for competitive programming
+(AtCoder and the like), aiming to prove the correctness of whatever can
+reasonably be proved in Lean 4 alongside the implementation.
 
-- **Lean**: `v4.22.0` (AtCoder と同一)
+- **Lean**: `v4.22.0` (the version AtCoder uses)
 - **Mathlib**: `v4.22.0`
-- **ドキュメント**: [doc-gen4](https://github.com/leanprover/doc-gen4) (`v4.22.0`)
+- **Documentation**: [doc-gen4](https://github.com/leanprover/doc-gen4) (`v4.22.0`)
 
-## 方針
+## Principles
 
-- AtCoder のコンテストに参加するために必要な、実用上十分な範囲を網羅することを目指す。
-- 趣味のライブラリとして、実行時性能だけでなく、実装の美しさ、Lean らしさ、証明のしやすさも
-  重視する。一方で、構造上の美しさのために性能を大きく損なう設計は採用しない。例えばヒープや
-  セグメント木は、帰納型による明示的な木ではなく配列を使って実装し、配列上の実装と抽象的な性質の
-  隔たりは `Lemmas` の定理で補う。
-- 学術用途の形式化ライブラリではなく、定理を外部 API として活用することも主目的にはしない。
-  証明は、実装が期待どおりに動くことを静的に確認するテストとして、主要な操作と性質を網羅するために
-  用いる。そのため、意味論上中心となる API は証明する一方、それから直接導かれる些末な利便 API は
-  未証明でもよい。例えば `Cplib.SegTree.get` の性質は証明しても、`get!` や `get?` について同様の定理を
-  個別には用意しないことがある。
+- Cover what it actually takes to compete on AtCoder, and cover it well enough
+  to rely on.
+- Being a library written for pleasure, it weighs elegance, idiomatic Lean and
+  ease of proof alongside runtime performance — but never at a large cost in
+  performance.  Heaps and segment trees, for instance, are implemented over
+  arrays rather than as explicit inductive trees, and the distance between the
+  array implementation and the abstract property is bridged by theorems in
+  `Lemmas`.
+- This is not an academic formalization library, and exposing theorems as an
+  external API is not a goal in itself.  The proofs serve as tests: they
+  establish statically that an implementation behaves as intended, and they aim
+  to cover the principal operations and properties.  So the semantically central
+  API is proved, while a trivial convenience wrapper derived from it may be left
+  unproved — `Cplib.SegTree.get` has its properties proved, whereas `get!` and
+  `get?` may have no theorem of their own.
 
-## 構成
+## Layout
 
-アルゴリズム、グラフ、データ構造、汎用ユーティリティなどの分類ごとに、`Cplib` 以下へ
-モジュールを配置する。`Std` / `Batteries` の慣習に倣い、実装と定理は原則として次のように分割する
-(`Std.Data.HashMap.{Basic,Lemmas}` と同じ):
+Modules are filed under `Cplib` by area: algorithms, graphs, data structures,
+general utilities and so on.  Following the `Std` and `Batteries` convention,
+implementation and theorems are separated as in `Std.Data.HashMap.{Basic,Lemmas}`:
 
-- `Cplib.<分類>.<名前>.Basic` … 実装。他の `Basic` のみに依存し、**`Mathlib` を import しない**。
-- `Cplib.<分類>.<名前>.Lemmas` … 定理。`Basic` と証明用の依存 (`Mathlib` 等) を import する。
-- `Cplib.<分類>.<名前>` … 上記をまとめて読み込む集約モジュール。`Cplib.lean` はこれを import する。
+- `Cplib.<area>.<name>.Basic` — the implementation.  Depends only on other
+  `Basic` modules and **never imports `Mathlib`**.
+- `Cplib.<area>.<name>.Lemmas` — the theorems.  Imports `Basic` together with
+  whatever the proofs need, `Mathlib` included.
+- `Cplib.<area>.<name>` — the aggregate module loading both, which is what
+  `Cplib.lean` imports.
 
-ライブラリ固有の公開 API は `Cplib` 名前空間に置く。ただし、`Nat.midpoint`、
-`Array.lowerBound` のように既存型の拡張として定義する API は、その型の名前空間に置く。
+Public API specific to this library lives in the `Cplib` namespace.  API defined
+as an extension of an existing type lives in that type's namespace instead, as
+`Nat.midpoint` and `Array.lowerBound` do.
 
-**実装だけを軽く使いたい場合 (AtCoder 提出など) は `...Basic` を直接 import する。**
-`Lemmas` (および `Mathlib`) を引かないのでビルドが速い。実装を編集したときの再ビルドも、
-`Basic` が `Mathlib` 非依存なので軽い。
+**To use an implementation on its own, for instance when submitting to AtCoder,
+import the `...Basic` module directly.**  It builds without `Lemmas`, and so
+without `Mathlib`.  Editing an implementation stays cheap to rebuild for the
+same reason.
 
-## ビルド
+## Building
 
 ```sh
-# 依存解決 (初回・依存更新時)
+# Resolve dependencies (first time, and after a dependency changes)
 lake update
 
-# Mathlib のビルド済みキャッシュを取得 (初回ビルドを高速化)
+# Fetch Mathlib's build cache (makes the first build much faster)
 lake exe cache get
 
-# ライブラリ全体のビルド
+# Build the library
 lake build
 ```
 
-## AtCoder 用の単一ファイル生成
+## Bundling a single file for AtCoder
 
-`scripts/bundle.py` はエントリファイルから到達可能な `Cplib.*` import を依存順に
-展開する。AtCoder 側に存在する Mathlib / Std などの import は先頭に残す。生成物には、
-AtCoder の生成 AI 利用ルールに基づく参照 URL と MIT ライセンス全文をコメントとして付加する。
+`scripts/bundle.py` expands every `Cplib.*` import reachable from an entry file,
+in dependency order.  Imports that AtCoder's judge already provides, such as
+`Mathlib` and `Std`, are left at the top.  The generated file carries a
+reference URL, as AtCoder's rules on generative AI require, and the full MIT
+licence text as a comment.
 
 ```sh
 python3 scripts/bundle.py path/to/Main.lean -o Submit.lean
 ```
 
-参照 URL は `--source-url`、ライセンスファイルは `--license` で差し替えられる。
-ライセンスを埋め込まない場合は `--no-license` を指定する。
+`--source-url` replaces the reference URL and `--license` the licence file;
+`--no-license` embeds no licence notice at all.
 
-生成後のファイルは、提出前に Lean 4.22.0 で executable としてビルドして確認する。
+Build the generated file as an executable with Lean 4.22.0 to check it before
+submitting.
 
-## ドキュメント生成 (ローカル)
+## Generating the documentation locally
 
-[doc-gen4](https://github.com/leanprover/doc-gen4) で API ドキュメントを生成する。
-公開版は <https://kowerkoint.github.io/cplib-lean/Cplib.html> から参照できる。
+The API documentation is generated with
+[doc-gen4](https://github.com/leanprover/doc-gen4).  The published copy is at
+<https://kowerkoint.github.io/cplib-lean/Cplib.html>.
 
-付属スクリプトを使うのが簡単:
+The bundled script is the easy way:
 
 ```sh
 ./scripts/make-docs.sh
 ```
 
-生成物は `.lake/build/doc/` 以下に出力される。ブラウザで開くには:
+It writes to `.lake/build/doc/`.  To open it in a browser:
 
 ```sh
-xdg-open .lake/build/doc/Cplib.html   # 各モジュールは Cplib/<Name>.html
+xdg-open .lake/build/doc/Cplib.html   # each module is at Cplib/<Name>.html
 ```
 
-スクリプトはローカルのソースリンクを生成し、依存パッケージの互換性調整も行う。
-初回は doc-gen4 本体もビルドするため時間がかかる。
+The script points source links at local files and works around a compatibility
+problem in a dependency.  The first run also builds doc-gen4 itself, so it takes
+a while.
 
-生成対象は `Cplib` のモジュールだけなので、`Init` / `Lean` / `Mathlib` の宣言への
-リンクには実体が無い。`scripts/link-external-docs.py` がそれらを
-[mathlib4_docs](https://leanprover-community.github.io/mathlib4_docs/) に向け直す。
-同サイトは Mathlib master 追従でモジュール構成がずれているため、パスではなく
-宣言名で解決する。`--base-url` でリンク先を差し替えられる。
+Only the `Cplib` modules are rendered, so links to declarations in `Init`,
+`Lean` and `Mathlib` have no page behind them.  `scripts/link-external-docs.py`
+redirects those to
+[mathlib4_docs](https://leanprover-community.github.io/mathlib4_docs/).  That
+site tracks Mathlib master, whose module layout has drifted, so the links are
+resolved by declaration name rather than by path.  `--base-url` points them
+somewhere else.
 
-## 宣言の所属モジュールを調べる
+## Finding which module a declaration is in
 
-`#whereis` は、ドキュメントサイトではなく**このパッケージが固定している環境**に
-宣言の所属モジュールを問い合わせる。mathlib4_docs は Mathlib master のものなので、
-v4.22.0 と比べると、上流に残っている宣言のうち 7.3% がモジュールを移動している。
+`#whereis` asks **the environment this package pins**, rather than a
+documentation site, which module a declaration comes from.  mathlib4_docs is
+built from Mathlib master, and measured against v4.22.0, 7.3% of the
+declarations that still exist upstream have moved to another module.
 
 ```sh
 ./scripts/whereis.sh Nat.isPowerOfTwo     # Nat.isPowerOfTwo — Init.Data.Nat.Power2
-./scripts/whereis.sh -s nextPowerOfTwo    # 名前の部分一致で列挙
+./scripts/whereis.sh -s nextPowerOfTwo    # list every name containing this
 ```
 
-1 回あたり Mathlib の読み込みで 10 秒ほどかかる。続けて何度も引くときは
-`scripts/WhereIs.lean` をエディタで開き、末尾に `#whereis` を書く方が速い。
+Each run spends about ten seconds loading Mathlib.  To ask many questions in a
+row, open `scripts/WhereIs.lean` in an editor and write the `#whereis` lines at
+the end of it instead.
 
-## ライセンス
+## Licence
 
 [MIT License](LICENSE)
