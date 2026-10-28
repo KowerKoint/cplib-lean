@@ -33,4 +33,25 @@ nothing for it. -/
   | some x => x
   | none => panic! s!"{name}: index out of bounds"
 
+/-- The out-of-range half of a `!` variant, for the operations that fall back to
+the structure they were handed.
+
+Those cannot be written as `unwrap! name (foo? …)`. The `Inhabited` default
+holds a second reference to the structure for as long as `foo?` runs, so the
+arrays inside it are shared, and an update that should have been in place
+copies the whole array instead. Writing the range check out and reaching for
+this only on the failing branch leaves the structure uniquely referenced on the
+path that does the work:
+
+```lean
+def set! (self : SegTree M) (i : Nat) (x : M) : SegTree M :=
+  if hi : i < self.sz then self.set ⟨i, hi⟩ x
+  else outOfBounds! "SegTree.set!" self
+```
+
+The message is the same one `unwrap!` reports. -/
+@[inline] def outOfBounds! (name : String) (fallback : α) : α :=
+  let _ : Inhabited α := ⟨fallback⟩
+  panic! s!"{name}: index out of bounds"
+
 end Cplib

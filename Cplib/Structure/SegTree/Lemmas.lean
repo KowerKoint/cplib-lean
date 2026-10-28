@@ -116,16 +116,26 @@ private theorem Impl.modifyUp_get_of_cap_le [Mul M] (self : SegTree M)
     (Impl.modifyUp self i).data[j] = self.data[j] := by
   exact Impl.modifyUpData_get_of_cap_le self.data i j hj hcap
 
+/-- `Impl.setData` at the leaf `set` writes to, in the shape the proofs below
+want: `set` itself has to spell the index out so that the structure is gone by
+the time the vector is written. -/
+private abbrev Impl.setDataAt [Mul M] [One M] (self : SegTree M) (i : Fin self.sz) (x : M) :
+    Vector M (self.cap * 2) :=
+  Impl.setData self.data (self.cap + i.val) (by
+    have hi := i.isLt
+    have hs := self.sz_le
+    omega) x
+
 private theorem Impl.setData_get_self [Mul M] [One M] (self : SegTree M)
     (i : Fin self.sz) (x : M) :
-    (Impl.setData self i x).get ⟨self.cap + i.val, by
+    (Impl.setDataAt self i x).get ⟨self.cap + i.val, by
       have hi := i.isLt
       have hs := self.sz_le
       omega⟩ = x := by
   have hi := i.isLt
   have hs := self.sz_le
   have hc := self.cap_pos
-  unfold Impl.setData
+  unfold Impl.setDataAt Impl.setData
   dsimp only
   split
   · change (self.data.set (self.cap + i.val) x _)[self.cap + i.val] = x
@@ -136,7 +146,7 @@ private theorem Impl.setData_get_self [Mul M] [One M] (self : SegTree M)
 
 private theorem Impl.setData_get_of_ne [Mul M] [One M] (self : SegTree M)
     (i j : Fin self.sz) (x : M) (hij : j ≠ i) :
-    (Impl.setData self i x).get ⟨self.cap + j.val, by
+    (Impl.setDataAt self i x).get ⟨self.cap + j.val, by
       have hj := j.isLt
       have hs := self.sz_le
       omega⟩ = self.data.get ⟨self.cap + j.val, by
@@ -147,7 +157,7 @@ private theorem Impl.setData_get_of_ne [Mul M] [One M] (self : SegTree M)
   have hj := j.isLt
   have hs := self.sz_le
   have hc := self.cap_pos
-  unfold Impl.setData
+  unfold Impl.setDataAt Impl.setData
   dsimp only
   split
   · change (self.data.set (self.cap + i.val) x _)[self.cap + j.val] =
@@ -474,8 +484,8 @@ theorem set_Valid [Mul M] [One M] (self : SegTree M) (hself : Valid self)
     (i : Fin self.sz) (x : M) : Valid (self.set i x) := by
   rcases hself with ⟨hinternal, hpadding⟩
   constructor
-  · change internalValid (Impl.setData self i x)
-    unfold Impl.setData
+  · change internalValid (Impl.setDataAt self i x)
+    unfold Impl.setDataAt Impl.setData
     dsimp only
     split
     · intro k hk0
@@ -498,13 +508,13 @@ theorem set_Valid [Mul M] [One M] (self : SegTree M) (hself : Valid self)
         · exact hinternal k hk0
         all_goals omega
   · change ∀ j : Fin self.cap, self.sz ≤ j.val →
-      (Impl.setData self i x)[self.cap + j.val] = 1
+      (Impl.setDataAt self i x)[self.cap + j.val] = 1
     intro j hsj
     have hi := i.isLt
     have hj := j.isLt
     have hs := self.sz_le
     have hc := self.cap_pos
-    unfold Impl.setData
+    unfold Impl.setDataAt Impl.setData
     dsimp only
     split
     · rw [Vector.getElem_set_ne]

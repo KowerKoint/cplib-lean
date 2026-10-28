@@ -50,20 +50,26 @@ def modifyUpData {cap : Nat} (data : Vector M (cap * 2)) (i : Fin cap) :
   ⟩
 
 def modifyUp (self : SegTree M) (i : Fin self.cap) : SegTree M :=
-  { self with data := modifyUpData self.data i }
+  let sz := self.sz
+  let cap := self.cap
+  let sz_le := self.sz_le
+  let cap_pos := self.cap_pos
+  let cap_pow2 := self.cap_pow2
+  let data := self.data
+  ⟨sz, cap, sz_le, cap_pos, cap_pow2, modifyUpData data i⟩
 
-def setData (self : SegTree M) (i : Fin self.sz) (x : M) :
-    Vector M (self.cap * 2) :=
-  let j := self.cap + i.val
-  let data := self.data.set j x (by
-    have hi := i.isLt
-    have hs := self.sz_le
-    omega)
+/-- Write `x` at the leaf `j` and refresh every ancestor.
+
+This takes the vector, not the tree, and that is load-bearing: `Vector.set`
+updates in place only while nothing else refers to the vector. Handed the tree,
+it would still be holding `data` when the write happens, so every `set` would
+copy the whole vector and the `O(log sz)` update would cost `O(sz)`. `set`
+therefore projects every field out of the structure first. -/
+def setData {cap : Nat} (data : Vector M (cap * 2)) (j : Nat) (hj : j < cap * 2) (x : M) :
+    Vector M (cap * 2) :=
+  let data := data.set j x hj
   if hroot : j ≤ 1 then data
-  else modifyUpData data ⟨j / 2, by
-    have hi := i.isLt
-    have hs := self.sz_le
-    omega⟩
+  else modifyUpData data ⟨j / 2, by omega⟩
 
 def prod (self : SegTree M) (i l r ql qr : Nat) : M :=
   if l ≥ r then 1
@@ -143,19 +149,37 @@ def get! (self : SegTree M) (i : Nat) : M :=
   let _ : Inhabited M := ⟨1⟩
   unwrap! "SegTree.get!" (self.get? i)
 
-/-- Replace the value at position `i` with `x`. `O(log sz)`. -/
+/-- Replace the value at position `i` with `x`. `O(log sz)`.
+
+The fields are taken apart before `Impl.setData` runs so that the vector it
+writes to is not also held by this tree; see `Impl.setData`. -/
 def set (self : SegTree M) (i : Fin self.sz) (x : M) : SegTree M :=
-  { self with data := Impl.setData self i x }
+  let j := self.cap + i.val
+  let hj : j < self.cap * 2 := by
+    have hi := i.isLt
+    have hs := self.sz_le
+    omega
+  let sz := self.sz
+  let cap := self.cap
+  let sz_le := self.sz_le
+  let cap_pos := self.cap_pos
+  let cap_pow2 := self.cap_pow2
+  let data := self.data
+  ⟨sz, cap, sz_le, cap_pos, cap_pow2, Impl.setData data j hj x⟩
 
 /-- `set` for a `Nat` index: `none` unless `i < sz`. -/
 def set? (self : SegTree M) (i : Nat) (x : M) : Option (SegTree M) :=
   if hi : i < self.sz then some (self.set ⟨i, hi⟩ x) else none
 
 /-- `set` for a `Nat` index, reporting a panic unless `i < sz` and then returning
-the tree unchanged. See `Cplib.unwrap!`: a panic does not stop the program. -/
+the tree unchanged. See `Cplib.unwrap!`: a panic does not stop the program.
+
+The range check is spelled out rather than delegated to `set?`, so that the
+tree is not also held by an `Inhabited` default while `set` runs; see
+`Cplib.outOfBounds!`. -/
 def set! (self : SegTree M) (i : Nat) (x : M) : SegTree M :=
-  let _ : Inhabited (SegTree M) := ⟨self⟩
-  unwrap! "SegTree.set!" (self.set? i x)
+  if hi : i < self.sz then self.set ⟨i, hi⟩ x
+  else outOfBounds! "SegTree.set!" self
 
 /-- Product over the half-open range `[l, r)`, left to right. Both bounds may be
 `sz`, and `r ≤ l` gives `One M`. `O(log sz)`. -/
