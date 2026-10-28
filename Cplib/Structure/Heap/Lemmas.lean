@@ -12,7 +12,9 @@ Specification of the binary heap in `Structure.Heap.Basic`.
 The comparator is data, not a typeclass, so every order statement here carries
 its assumption about it explicitly: `LawfulCmp heap.cmp`. Under that assumption
 `empty`, `add`, `pop` and `ofArray` all produce heaps satisfying `Valid`, and a
-`Valid` heap's `top` is a minimum (`top_le`).
+`Valid` heap's `top` is a minimum (`top_le`). `drain` then empties such a heap
+into a sorted list (`drain_sorted`), which makes `ofArray` followed by `drain`
+a verified heapsort (`drain_ofArray_sorted`, `drain_ofArray_perm`).
 -/
 
 namespace Heap
@@ -119,6 +121,16 @@ theorem top_le (heap : Heap α) (hlaw : LawfulCmp heap.cmp) (hvalid : heap.Valid
       · subst hk0
         exact hlaw.refl _
       · exact hlaw.trans (ih ((k - 1) / 2) (by omega) (by omega)) (hvalid k hi hk0)
+
+/-- The same, for an element given by membership rather than by index. -/
+theorem top_le_of_mem (heap : Heap α) (hlaw : LawfulCmp heap.cmp) (hvalid : heap.Valid)
+    (hpos : 0 < heap.n) {b : α} (hb : b ∈ heap.data.toList) :
+    LE heap.cmp (heap.top hpos) b := by
+  obtain ⟨j, hj, hje⟩ := List.getElem_of_mem hb
+  rw [Vector.length_toList] at hj
+  rw [Vector.getElem_toList] at hje
+  rw [← hje]
+  exact top_le heap hlaw hvalid hpos j hj
 
 @[simp] theorem empty_Valid (cmp : α → α → Ordering) : (empty cmp).Valid := by
   intro i hi
@@ -601,15 +613,10 @@ The next `top` is still one of the heap's elements, and `top_le` puts the
 current one below all of them. -/
 theorem top_le_top_pop [BEq α] [LawfulBEq α] (heap : Heap α) (hlaw : LawfulCmp heap.cmp)
     (hvalid : heap.Valid) (h : 0 < heap.n) (h' : 0 < (heap.pop h).n) :
-    LE heap.cmp (heap.top h) ((heap.pop h).top h') := by
-  have hmem : (heap.pop h).top h' ∈ heap.data.toList := by
-    refine (pop_data_perm heap h).mem_iff.mp (List.mem_append_left _ ?_)
-    exact Vector.mem_toList_iff.mpr (Vector.getElem_mem h')
-  obtain ⟨j, hj, hje⟩ := List.getElem_of_mem hmem
-  rw [Vector.length_toList] at hj
-  rw [Vector.getElem_toList] at hje
-  rw [← hje]
-  exact top_le heap hlaw hvalid h j hj
+    LE heap.cmp (heap.top h) ((heap.pop h).top h') :=
+  top_le_of_mem heap hlaw hvalid h
+    ((pop_data_perm heap h).mem_iff.mp
+      (List.mem_append_left _ (Vector.mem_toList_iff.mpr (Vector.getElem_mem h'))))
 
 @[simp] theorem top?_empty (cmp : α → α → Ordering) :
     (empty cmp).top? = none := rfl
@@ -626,53 +633,126 @@ theorem top_le_top_pop [BEq α] [LawfulBEq α] (heap : Heap α) (hlaw : LawfulCm
     heap.top? = some (heap.top h) := by
   simp [top?, top, h]
 
-private def drainNat (heap : Heap Nat) : List Nat :=
-  if h : 0 < heap.n then heap.top h :: drainNat (heap.pop h) else []
-termination_by heap.n
-decreasing_by
-  rw [pop_n]
-  omega
+/-! ## `drain` -/
 
-private theorem drainNat_head? (heap : Heap Nat) (b : Nat) (hb : b ∈ (drainNat heap).head?) :
-    ∃ h : 0 < heap.n, b = heap.top h := by
-  rw [drainNat] at hb
-  split at hb
-  · rename_i h
-    exact ⟨h, by simpa using hb.symm⟩
-  · simp at hb
+/-- Induction by popping: to prove something of every heap it is enough to prove
+it of `heap` given it for `heap.pop`. -/
+theorem pop_induction {motive : Heap α → Prop}
+    (step : ∀ heap : Heap α, (∀ h : 0 < heap.n, motive (heap.pop h)) → motive heap)
+    (heap : Heap α) : motive heap := by
+  suffices hk : ∀ k (heap : Heap α), heap.n ≤ k → motive heap from hk heap.n heap le_rfl
+  intro k
+  induction k with
+  | zero => exact fun heap hk => step heap fun h => absurd h (by omega)
+  | succ k ih =>
+      exact fun heap hk => step heap fun h => ih (heap.pop h) (by rw [pop_n]; omega)
 
-/-- Draining a `Valid` heap yields a non-decreasing list.
+/-- Any step count past `heap.n` drains the same list, which is what lets `drain`
+pass `heap.n` and still satisfy the equation it would have had as a recursive
+definition. -/
+theorem Impl.drainFuel_congr : ∀ (k l : Nat) (heap : Heap α), heap.n ≤ k → heap.n ≤ l →
+    Impl.drainFuel k heap = Impl.drainFuel l heap := by
+  intro k
+  induction k with
+  | zero =>
+      intro l heap hk hl
+      cases l with
+      | zero => rfl
+      | succ l =>
+          simp only [Impl.drainFuel]
+          rw [dif_neg (by omega)]
+  | succ k ih =>
+      intro l heap hk hl
+      cases l with
+      | zero =>
+          simp only [Impl.drainFuel]
+          rw [dif_neg (by omega)]
+      | succ l =>
+          simp only [Impl.drainFuel]
+          by_cases h : 0 < heap.n
+          · rw [dif_pos h, dif_pos h,
+              ih l (heap.pop h) (by rw [pop_n]; omega) (by rw [pop_n]; omega)]
+          · rw [dif_neg h, dif_neg h]
 
-This is the whole chain in one statement: `pop` keeps the heap `Valid`, and a
-`Valid` heap hands out its minimum first. -/
-private theorem drainNat_chain' : ∀ (heap : Heap Nat), LawfulCmp heap.cmp → heap.Valid →
-    (drainNat heap).Chain' (LE heap.cmp) := by
+/-- `drain` pops once and drains the rest. -/
+theorem drain_eq (heap : Heap α) :
+    heap.drain = if h : 0 < heap.n then heap.top h :: (heap.pop h).drain else [] := by
+  unfold drain
+  by_cases h : 0 < heap.n
+  · rw [dif_pos h, Impl.drainFuel_congr heap.n (heap.n - 1 + 1) heap le_rfl (by omega)]
+    simp only [Impl.drainFuel]
+    rw [dif_pos h]
+    congr 1
+    exact Impl.drainFuel_congr (heap.n - 1) (heap.pop h).n (heap.pop h)
+      (by rw [pop_n]) (by rw [pop_n])
+  · rw [dif_neg h, show heap.n = 0 by omega]
+    rfl
+
+@[simp] theorem drain_empty (cmp : α → α → Ordering) : (empty cmp).drain = [] := rfl
+
+@[simp] theorem drain_length (heap : Heap α) : heap.drain.length = heap.n := by
+  induction heap using pop_induction with
+  | step heap ih =>
+      rw [drain_eq]
+      by_cases h : 0 < heap.n
+      · rw [dif_pos h, List.length_cons, ih h, pop_n]
+        omega
+      · rw [dif_neg h]
+        have hn : heap.n = 0 := by omega
+        simp [hn]
+
+/-- `drain` hands back exactly the elements the heap held. -/
+theorem drain_perm [BEq α] [LawfulBEq α] (heap : Heap α) :
+    heap.drain.Perm heap.data.toList := by
+  induction heap using pop_induction with
+  | step heap ih =>
+      rw [drain_eq]
+      by_cases h : 0 < heap.n
+      · rw [dif_pos h]
+        refine List.Perm.trans ?_ (pop_data_perm heap h)
+        exact ((List.perm_append_singleton _ _).symm).trans ((ih h).append_right _)
+      · rw [dif_neg h]
+        have hn : heap.data.toList = [] :=
+          List.eq_nil_of_length_eq_zero (by simp; omega)
+        rw [hn]
+
+/-- Draining a heap in order yields a sorted list: not merely non-decreasing
+step to step, but every element below every later one. -/
+theorem drain_sorted [BEq α] [LawfulBEq α] : ∀ (heap : Heap α), LawfulCmp heap.cmp →
+    heap.Valid → heap.drain.Sorted (LE heap.cmp) := by
   intro heap
-  fun_induction drainNat heap with
-  | case1 heap hp ih =>
+  induction heap using pop_induction with
+  | step heap ih =>
       intro hlaw hvalid
-      rw [List.chain'_cons']
-      refine ⟨?_, ?_⟩
-      · intro b hb
-        obtain ⟨h', rfl⟩ := drainNat_head? _ b hb
-        exact top_le_top_pop _ hlaw hvalid hp h'
-      · have hchain := ih (by rw [pop_cmp]; exact hlaw) (pop_Valid _ hlaw hvalid hp)
-        rwa [pop_cmp] at hchain
-  | case2 heap hp =>
-      intro _ _
-      simp
+      rw [drain_eq]
+      by_cases h : 0 < heap.n
+      · rw [dif_pos h]
+        refine List.sorted_cons.mpr ⟨?_, ?_⟩
+        · -- What `pop` left behind is still part of the heap, and `top` is below
+          -- all of it.
+          intro b hb
+          refine top_le_of_mem heap hlaw hvalid h ?_
+          exact (pop_data_perm heap h).mem_iff.mp
+            (List.mem_append_left _ ((drain_perm (heap.pop h)).subset hb))
+        · have hsorted := ih h (by rw [pop_cmp]; exact hlaw) (pop_Valid heap hlaw hvalid h)
+          rwa [pop_cmp] at hsorted
+      · rw [dif_neg h]
+        exact List.sorted_nil
 
-/-- Building in bulk and popping repeatedly yields the elements in non-decreasing
-order, duplicates included. -/
-private theorem drainNat_sorted (xs : Array Nat) :
-    (drainNat (ofArray xs)).Chain' (LE compare) := by
-  have hchain := drainNat_chain' (ofArray xs compare)
-    (by rw [ofArray_cmp]; exact lawfulCmp_compare)
-    (ofArray_Valid xs compare lawfulCmp_compare)
-  rwa [ofArray_cmp] at hchain
+/-- Heapsort: `ofArray` then `drain` sorts an array. -/
+theorem drain_ofArray_sorted [BEq α] [LawfulBEq α] (xs : Array α) (cmp : α → α → Ordering)
+    (hlaw : LawfulCmp cmp) : ((ofArray xs cmp).drain).Sorted (LE cmp) := by
+  have hsorted := drain_sorted (ofArray xs cmp) (by rw [ofArray_cmp]; exact hlaw)
+    (ofArray_Valid xs cmp hlaw)
+  rwa [ofArray_cmp] at hsorted
+
+/-- …and it sorts exactly the elements it was given. -/
+theorem drain_ofArray_perm [BEq α] [LawfulBEq α] (xs : Array α) (cmp : α → α → Ordering) :
+    ((ofArray xs cmp).drain).Perm xs.toList :=
+  (drain_perm _).trans (ofArray_data_perm xs cmp)
 
 /-- Regression test for the implementation itself. -/
-example : drainNat (ofArray #[5, 1, 4, 1, 3]) = [1, 1, 3, 4, 5] := by
+example : (ofArray #[5, 1, 4, 1, 3]).drain = [1, 1, 3, 4, 5] := by
   native_decide
 
 end Heap

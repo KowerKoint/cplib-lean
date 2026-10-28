@@ -17,12 +17,14 @@ Nothing enforces this at runtime, and a comparator that violates it simply
 produces an unspecified order.
 
 Costs, for a heap of `n` elements: `empty`, `size`, `isEmpty` and `top` are
-`O(1)`, `add` and `pop` are `O(log n)`, and `ofArray` is `O(n)`.
+`O(1)`, `add` and `pop` are `O(log n)`, `ofArray` is `O(n)`, and `drain` is
+`O(n log n)`.
 
 ```lean
 let h := Heap.ofArray #[5, 1, 4, 1, 3]
 h.top!            -- 1, the smallest element
 (h.pop!).top!     -- 1, the duplicate
+h.drain           -- [1, 1, 3, 4, 5]
 ```
 -/
 
@@ -136,6 +138,31 @@ def pop! (heap : Heap α) : Heap α :=
   let _ : Inhabited <| Heap α := ⟨heap⟩
   if h : 0 < heap.n then heap.pop h
   else panic! "Heap.pop! : heap is empty"
+
+namespace Impl
+
+/-- `drain` with an explicit step count, which makes it structurally recursive
+and so keeps the termination argument out of this module: that `pop` shortens
+the heap is `Heap.pop_n`, which lives with the other proofs. -/
+def drainFuel : Nat → Heap α → List α
+  | 0, _ => []
+  | fuel + 1, heap =>
+      if h : 0 < heap.n then heap.top h :: drainFuel fuel (heap.pop h) else []
+
+end Impl
+
+/-- Every element, smallest first, by popping until the heap is empty.
+`O(n log n)`.
+
+`heap.n` steps are exactly enough, since each `pop` removes one element.
+For a heap in order this list is sorted (`Heap.drain_sorted`), so
+`(Heap.ofArray xs).drain` is heapsort.
+
+```lean
+(Heap.ofArray #[5, 1, 4, 1, 3]).drain   -- [1, 1, 3, 4, 5]
+```
+-/
+def drain (heap : Heap α) : List α := Impl.drainFuel heap.n heap
 
 end Heap
 
