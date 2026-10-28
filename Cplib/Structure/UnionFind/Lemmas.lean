@@ -23,6 +23,11 @@ The two families of operations are related here rather than specified twice.
 `persistentSame`, `persistentSize` and `persistentMerge` answer, and the state
 they hand back has the same representatives as the one they were given. Path
 compression is an optimisation that cannot be observed through the API.
+
+`groups` is specified by `groupsSpec`, which writes out what it returns: for
+every vertex that is the least of its component, taken in increasing order, that
+component's vertices, in increasing order. `groups_eq` proves the two agree, and
+the theorems after it read the usual facts off that.
 -/
 
 namespace UnionFind
@@ -842,6 +847,302 @@ private theorem leaderFuel_empty {n : Nat} (fuel : Nat) (i : Fin n) :
     (empty n).persistentMerge a a = empty n := by
   simp [persistentMerge, Impl.link]
 
+/-! ## `groups` -/
+
+namespace Impl
+
+/-- The root of `v`, when `v` is a vertex at all. -/
+def rootOf (self : UnionFind n) (v : Nat) : Option (Fin n) :=
+  if h : v < n then some (self.persistentLeader ⟨v, h⟩) else none
+
+@[simp] theorem rootOf_eq_some {self : UnionFind n} {v : Nat} (hv : v < n) :
+    rootOf self v = some (self.persistentLeader ⟨v, hv⟩) := dif_pos hv
+
+@[simp] theorem rootOf_eq_none {self : UnionFind n} {v : Nat} (hv : ¬v < n) :
+    rootOf self v = none := dif_neg hv
+
+/-- The vertices below `i` that `r` represents, in increasing order. -/
+def bucketUpTo (self : UnionFind n) (i : Nat) (r : Fin n) : List Nat :=
+  (List.range i).filter fun v => rootOf self v = some r
+
+/-- Whether `v` is the least vertex of its component. -/
+def isFirst (self : UnionFind n) (v : Nat) : Bool :=
+  (List.range v).all fun w => rootOf self w ≠ rootOf self v
+
+/-- The roots of the components met below `i`, each recorded where it is first
+met. -/
+def orderUpTo (self : UnionFind n) (i : Nat) : List (Fin n) :=
+  ((List.range i).filter (isFirst self)).filterMap (rootOf self)
+
+@[simp] theorem bucketUpTo_zero (self : UnionFind n) (r : Fin n) :
+    bucketUpTo self 0 r = [] := rfl
+
+@[simp] theorem orderUpTo_zero (self : UnionFind n) : orderUpTo self 0 = [] := rfl
+
+theorem bucketUpTo_succ (self : UnionFind n) (i : Nat) (r : Fin n) :
+    bucketUpTo self (i + 1) r =
+      bucketUpTo self i r ++ (if rootOf self i = some r then [i] else []) := by
+  simp only [bucketUpTo, List.range_succ, List.filter_append, List.filter_cons,
+    List.filter_nil, decide_eq_true_eq]
+
+theorem orderUpTo_succ (self : UnionFind n) (i : Nat) :
+    orderUpTo self (i + 1) =
+      orderUpTo self i ++ (if isFirst self i then (rootOf self i).toList else []) := by
+  simp only [orderUpTo, List.range_succ, List.filter_append, List.filterMap_append,
+    List.filter_cons, List.filter_nil]
+  congr 1
+  by_cases hi : isFirst self i <;> cases hr : rootOf self i <;> simp [hi, hr]
+
+/-- The bucket of `v`'s root is still empty exactly when `v` is the least vertex
+of its component. -/
+theorem bucketUpTo_eq_nil_iff {self : UnionFind n} {v : Nat} (hv : v < n) :
+    bucketUpTo self v (self.persistentLeader ⟨v, hv⟩) = [] ↔ isFirst self v := by
+  simp [bucketUpTo, isFirst, List.filter_eq_nil_iff, List.all_eq_true, rootOf_eq_some hv]
+
+/-- Path compression leaves every root where it was, so it leaves all of this
+alone. -/
+theorem rootOf_congr {self₁ self₂ : UnionFind n}
+    (hr : ∀ c, self₁.persistentLeader c = self₂.persistentLeader c) (v : Nat) :
+    rootOf self₁ v = rootOf self₂ v := by
+  unfold rootOf
+  split <;> simp [hr]
+
+theorem bucketUpTo_congr {self₁ self₂ : UnionFind n}
+    (hr : ∀ c, self₁.persistentLeader c = self₂.persistentLeader c) (i : Nat) (r : Fin n) :
+    bucketUpTo self₁ i r = bucketUpTo self₂ i r := by
+  simp [bucketUpTo, rootOf_congr hr]
+
+theorem isFirst_congr {self₁ self₂ : UnionFind n}
+    (hr : ∀ c, self₁.persistentLeader c = self₂.persistentLeader c) (v : Nat) :
+    isFirst self₁ v = isFirst self₂ v := by
+  simp [isFirst, rootOf_congr hr]
+
+theorem orderUpTo_congr {self₁ self₂ : UnionFind n}
+    (hr : ∀ c, self₁.persistentLeader c = self₂.persistentLeader c) (i : Nat) :
+    orderUpTo self₁ i = orderUpTo self₂ i := by
+  simp only [orderUpTo, funext (isFirst_congr hr), funext (rootOf_congr hr)]
+
+theorem collectGroupsFrom_of_lt (self : UnionFind n) {i : Nat} (hi : i < n)
+    (order : Array (Fin n)) (buckets : Vector (Array Nat) n) :
+    collectGroupsFrom self i order buckets =
+      collectGroupsFrom (self.leader ⟨i, hi⟩).2 (i + 1)
+        (if buckets[(self.leader ⟨i, hi⟩).1].isEmpty then order.push (self.leader ⟨i, hi⟩).1
+          else order)
+        (buckets.set (self.leader ⟨i, hi⟩).1 (buckets[(self.leader ⟨i, hi⟩).1].push i)) := by
+  rw [collectGroupsFrom.eq_def]
+  simp [dif_pos hi, Vector.set_set]
+
+theorem collectGroupsFrom_of_ge (self : UnionFind n) {i : Nat} (hi : ¬i < n)
+    (order : Array (Fin n)) (buckets : Vector (Array Nat) n) :
+    collectGroupsFrom self i order buckets = (order, buckets, self) := by
+  rw [collectGroupsFrom.eq_def]
+  simp [dif_neg hi]
+
+/-- The loop fills every bucket with the vertices of its component and records
+each root where it is first met, while the state it threads keeps the invariant
+and every representative. -/
+theorem collectGroupsFrom_spec {self : UnionFind n} (h : self.Valid) {i : Nat} (hi : i ≤ n)
+    {order : Array (Fin n)} {buckets : Vector (Array Nat) n}
+    (horder : order.toList = orderUpTo self i)
+    (hbuckets : ∀ r : Fin n, buckets[r].toList = bucketUpTo self i r) :
+    (collectGroupsFrom self i order buckets).2.2.Valid ∧
+      (∀ c, (collectGroupsFrom self i order buckets).2.2.persistentLeader c =
+        self.persistentLeader c) ∧
+      (collectGroupsFrom self i order buckets).1.toList = orderUpTo self n ∧
+      ∀ r : Fin n, (collectGroupsFrom self i order buckets).2.1[r].toList =
+        bucketUpTo self n r := by
+  generalize hk : n - i = k
+  induction k generalizing self i order buckets with
+  | zero =>
+      have hin : i = n := by omega
+      subst hin
+      rw [collectGroupsFrom_of_ge self (by omega)]
+      exact ⟨h, fun _ => rfl, horder, hbuckets⟩
+  | succ k ih =>
+      have hlt : i < n := by omega
+      rw [collectGroupsFrom_of_lt self hlt]
+      set r := (self.leader ⟨i, hlt⟩).1 with hr
+      set self' := (self.leader ⟨i, hlt⟩).2 with hself'
+      have hroot : r = self.persistentLeader ⟨i, hlt⟩ := leader_fst h ⟨i, hlt⟩
+      have hpl : ∀ c, self'.persistentLeader c = self.persistentLeader c :=
+        fun c => leader_persistentLeader h ⟨i, hlt⟩ c
+      have hbucket : buckets[r].toList = bucketUpTo self i r := hbuckets r
+      have hrootOf : rootOf self i = some r := by rw [rootOf_eq_some hlt, hroot]
+      have horder' : (if buckets[r].isEmpty then order.push r else order).toList =
+          orderUpTo self' (i + 1) := by
+        rw [orderUpTo_congr hpl (i + 1), orderUpTo_succ]
+        by_cases hempty : buckets[r].isEmpty
+        · have hfirst : isFirst self i := by
+            rw [← bucketUpTo_eq_nil_iff hlt, ← hroot, ← hbucket]
+            simpa using hempty
+          rw [if_pos hempty, Array.toList_push, horder, if_pos hfirst, hrootOf]
+          rfl
+        · have hfirst : ¬isFirst self i := by
+            rw [← bucketUpTo_eq_nil_iff hlt, ← hroot, ← hbucket]
+            simpa using hempty
+          rw [if_neg hempty, horder, if_neg hfirst, List.append_nil]
+      have hbuckets' : ∀ r' : Fin n, (buckets.set r (buckets[r].push i))[r'].toList =
+          bucketUpTo self' (i + 1) r' := by
+        intro r'
+        rw [bucketUpTo_congr hpl (i + 1), bucketUpTo_succ, hrootOf]
+        by_cases hrr : r = r'
+        · subst hrr
+          simpa [Vector.getElem_set, Array.toList_push] using hbucket
+        · simpa [Vector.getElem_set, hrr, Ne.symm hrr, Fin.val_inj] using hbuckets r'
+      obtain ⟨hv, hp, ho, hb⟩ := ih (self := self') (i := i + 1)
+        (order := if buckets[r].isEmpty then order.push r else order)
+        (buckets := buckets.set r (buckets[r].push i))
+        (leader_Valid h ⟨i, hlt⟩) (by omega) horder' hbuckets' (by omega)
+      exact ⟨hv, fun c => (hp c).trans (hpl c), ho.trans (orderUpTo_congr hpl n),
+        fun r' => (hb r').trans (bucketUpTo_congr hpl n r')⟩
+
+theorem collectGroups_spec {self : UnionFind n} (h : self.Valid) :
+    (collectGroups self).2.2.Valid ∧
+      (∀ c, (collectGroups self).2.2.persistentLeader c = self.persistentLeader c) ∧
+      (collectGroups self).1.toList = orderUpTo self n ∧
+      ∀ r : Fin n, (collectGroups self).2.1[r].toList = bucketUpTo self n r :=
+  collectGroupsFrom_spec h (i := 0) (order := #[]) (buckets := Vector.replicate n #[])
+    (Nat.zero_le n) rfl (fun r => by simp [bucketUpTo])
+
+theorem mem_bucketUpTo {self : UnionFind n} {i v : Nat} {r : Fin n} :
+    v ∈ bucketUpTo self i r ↔ v < i ∧ rootOf self v = some r := by
+  simp [bucketUpTo, List.mem_filter, List.mem_range]
+
+theorem sorted_bucketUpTo (self : UnionFind n) (i : Nat) (r : Fin n) :
+    (bucketUpTo self i r).Sorted (· < ·) :=
+  List.pairwise_lt_range.filter _
+
+/-- A bucket holds one vertex for each member of the component, so it is as long
+as that component is large. -/
+theorem length_bucketUpTo (self : UnionFind n) (r : Fin n) :
+    (bucketUpTo self n r).length = (self.component r).card := by
+  have hnodup : (bucketUpTo self n r).Nodup := (List.nodup_range).filter _
+  rw [← List.toFinset_card_of_nodup hnodup]
+  refine (Finset.card_bij (fun (v : Fin n) _ => v.val) ?_ ?_ ?_).symm
+  · intro v hv
+    simp only [mem_component] at hv
+    simp [List.mem_toFinset, mem_bucketUpTo, v.isLt, hv]
+  · intro a _ b _ hab
+    exact Fin.val_inj.mp hab
+  · intro w hw
+    simp only [List.mem_toFinset, mem_bucketUpTo] at hw
+    obtain ⟨hwn, hwr⟩ := hw
+    exact ⟨⟨w, hwn⟩, by simpa [rootOf_eq_some hwn] using hwr, rfl⟩
+
+private theorem map_filterMap_rootOf (self : UnionFind n) (l : List Nat)
+    (hl : ∀ v ∈ l, v < n) :
+    (l.filterMap (rootOf self)).map (bucketUpTo self n) =
+      l.map fun v => (List.range n).filter fun w => rootOf self w = rootOf self v := by
+  induction l with
+  | nil => rfl
+  | cons v l ih =>
+      have hv : v < n := hl v (by simp)
+      simp [rootOf_eq_some hv, bucketUpTo, ih fun w hw => hl w (by simp [hw])]
+
+end Impl
+
+/-- `groups`, written out: for every vertex that is the least of its component,
+taken in increasing order, the vertices of that component, in increasing order.
+
+This is the statement of what `groups` returns; `groups_eq` proves it. -/
+def groupsSpec (self : UnionFind n) : List (List Nat) :=
+  ((List.range n).filter (Impl.isFirst self)).map fun v =>
+    (List.range n).filter fun w => Impl.rootOf self w = Impl.rootOf self v
+
+/-- `groups` returns the components, in order of the least vertex of each, each
+listed in increasing order. -/
+theorem groups_eq {self : UnionFind n} (h : self.Valid) :
+    (self.groups).1.toList.map Array.toList = self.groupsSpec := by
+  obtain ⟨-, -, horder, hbuckets⟩ := Impl.collectGroups_spec h
+  show ((Impl.collectGroups self).1.map ((Impl.collectGroups self).2.1[·])).toList.map
+    Array.toList = _
+  rw [Array.toList_map, List.map_map, horder]
+  rw [show ((fun g => g.toList) ∘ fun r => (Impl.collectGroups self).2.1[r]) =
+      Impl.bucketUpTo self n from funext fun r => hbuckets r]
+  exact Impl.map_filterMap_rootOf self _ fun v hv => by
+    simpa using (List.mem_filter.mp hv).1
+
+/-- The state `groups` hands back keeps the invariant. -/
+theorem groups_snd_Valid {self : UnionFind n} (h : self.Valid) : (self.groups).2.Valid :=
+  (Impl.collectGroups_spec h).1
+
+/-- …and has the same representatives as the one it was given. -/
+@[simp] theorem groups_snd_persistentLeader {self : UnionFind n} (h : self.Valid) (c : Fin n) :
+    (self.groups).2.persistentLeader c = self.persistentLeader c :=
+  (Impl.collectGroups_spec h).2.1 c
+
+/-- Every group is the component of each of its vertices, in increasing order. -/
+theorem toList_of_mem_groups {self : UnionFind n} (h : self.Valid) {g : Array Nat}
+    (hg : g ∈ (self.groups).1) {u : Fin n} (hu : u.val ∈ g) :
+    g.toList = Impl.bucketUpTo self n (self.persistentLeader u) := by
+  have hmem : g.toList ∈ self.groupsSpec := by
+    rw [← groups_eq h]
+    exact List.mem_map_of_mem (by simpa using hg)
+  obtain ⟨v, -, hgv⟩ := List.mem_map.mp hmem
+  have hu' : u.val ∈ g.toList := by simpa using hu
+  rw [← hgv] at hu' ⊢
+  have hru : Impl.rootOf self u.val = Impl.rootOf self v := by
+    simpa using (List.mem_filter.mp hu').2
+  simp only [Impl.bucketUpTo, ← hru, Impl.rootOf_eq_some u.isLt, Fin.eta]
+
+/-- A vertex is in a group exactly when it is connected to the vertices there. -/
+theorem mem_groups_iff {self : UnionFind n} (h : self.Valid) {g : Array Nat}
+    (hg : g ∈ (self.groups).1) {u : Fin n} (hu : u.val ∈ g) (v : Fin n) :
+    v.val ∈ g ↔ self.persistentSame v u := by
+  have hv : v.val ∈ g ↔ v.val ∈ g.toList := by simp
+  rw [hv, toList_of_mem_groups h hg hu, Impl.mem_bucketUpTo, persistentSame_iff,
+    Impl.rootOf_eq_some v.isLt]
+  simp [v.isLt]
+
+/-- A group is as long as the component it lists. -/
+theorem size_of_mem_groups {self : UnionFind n} (h : self.Valid) {g : Array Nat}
+    (hg : g ∈ (self.groups).1) {u : Fin n} (hu : u.val ∈ g) :
+    g.size = self.persistentSize u := by
+  rw [← Array.length_toList, toList_of_mem_groups h hg hu, Impl.length_bucketUpTo,
+    persistentSize_eq, h.size_eq_card _ (h.parent_persistentLeader u)]
+
+/-- A vertex is in one group only. -/
+theorem eq_of_mem_groups {self : UnionFind n} (h : self.Valid) {g g' : Array Nat}
+    (hg : g ∈ (self.groups).1) (hg' : g' ∈ (self.groups).1) {u : Fin n}
+    (hu : u.val ∈ g) (hu' : u.val ∈ g') : g = g' :=
+  Array.toList_inj.mp
+    ((toList_of_mem_groups h hg hu).trans (toList_of_mem_groups h hg' hu').symm)
+
+/-- Each group lists its vertices in increasing order. -/
+theorem sorted_of_mem_groups {self : UnionFind n} (h : self.Valid) {g : Array Nat}
+    (hg : g ∈ (self.groups).1) : g.toList.Sorted (· < ·) := by
+  have hmem : g.toList ∈ self.groupsSpec := by
+    rw [← groups_eq h]
+    exact List.mem_map_of_mem (by simpa using hg)
+  obtain ⟨v, -, hgv⟩ := List.mem_map.mp hmem
+  rw [← hgv]
+  exact List.pairwise_lt_range.filter _
+
+/-- Every vertex is in a group. -/
+theorem exists_mem_groups {self : UnionFind n} (h : self.Valid) (v : Fin n) :
+    ∃ g ∈ (self.groups).1, v.val ∈ g := by
+  have hex : ∃ w, Impl.rootOf self w = Impl.rootOf self v.val := ⟨v.val, rfl⟩
+  have hwr : Impl.rootOf self (Nat.find hex) = Impl.rootOf self v.val := Nat.find_spec hex
+  have hwn : Nat.find hex < n := by
+    by_contra hc
+    rw [Impl.rootOf_eq_none hc, Impl.rootOf_eq_some v.isLt] at hwr
+    exact Option.noConfusion hwr
+  have hfirst : Impl.isFirst self (Nat.find hex) := by
+    simp only [Impl.isFirst, List.all_eq_true, List.mem_range, ne_eq, decide_eq_true_eq]
+    intro m hm
+    rw [hwr]
+    exact Nat.find_min hex hm
+  have hmem : ((List.range n).filter fun z =>
+      Impl.rootOf self z = Impl.rootOf self (Nat.find hex)) ∈ self.groupsSpec :=
+    List.mem_map_of_mem (List.mem_filter.mpr ⟨List.mem_range.mpr hwn, hfirst⟩)
+  rw [← groups_eq h] at hmem
+  obtain ⟨g, hg, hgv⟩ := List.mem_map.mp hmem
+  refine ⟨g, by simpa using hg, ?_⟩
+  have : v.val ∈ g.toList := by
+    rw [hgv]
+    exact List.mem_filter.mpr ⟨List.mem_range.mpr v.isLt, by rw [hwr]; simp⟩
+  simpa using this
+
 /-! ## Tests -/
 
 /-- Components come back in order of the first vertex belonging to each, and each
@@ -852,6 +1153,13 @@ example :
   native_decide
 
 example : (empty 4).groups.1 = #[#[0], #[1], #[2], #[3]] := by
+  native_decide
+
+/-- `groupsSpec` says the same thing, which is what `groups_eq` proves in
+general. -/
+example :
+    let uf := (empty 7).merge 1 3 |>.merge 5 1 |>.merge 4 6
+    uf.groupsSpec = [[0], [1, 3, 5], [2], [4, 6]] := by
   native_decide
 
 /-- The ordering still follows the least vertex of each component even when the
