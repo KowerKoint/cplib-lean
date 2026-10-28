@@ -10,10 +10,11 @@ repeated `pop` yields elements in non-decreasing order. The default comparator
 is `compare`, so `Heap.empty` on an ordered type gives the usual min-heap. For a
 max-heap, pass the reversed comparator: `Heap.empty (fun a b => compare b a)`.
 
-`cmp` is expected to be a total preorder, that is, reflexive, transitive, and
-total in the sense that `(cmp a b).isLE` or `(cmp b a).isLE` holds for every
-pair. Nothing enforces this; a comparator that violates it simply produces an
-unspecified order.
+`cmp` is expected to be a total preorder. `Heap.LawfulCmp`, in
+`Structure.Heap.Lemmas`, states exactly what is assumed, and every order theorem
+there takes it as a hypothesis; `compare` on a `LinearOrder` satisfies it.
+Nothing enforces this at runtime, and a comparator that violates it simply
+produces an unspecified order.
 
 Costs, for a heap of `n` elements: `empty`, `size`, `isEmpty` and `top` are
 `O(1)`, `add` and `pop` are `O(log n)`, and `ofArray` is `O(n)`.
