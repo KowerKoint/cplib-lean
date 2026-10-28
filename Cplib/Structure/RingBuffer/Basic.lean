@@ -109,8 +109,8 @@ returns `default`; see `Cplib.unwrap!`. `O(1)`. -/
 /-- `set` without the range check. Reports a panic on an out-of-range index and
 returns the buffer unchanged; see `Cplib.unwrap!`. `O(1)`. -/
 @[inline] def set! (b : RingBuffer α) (i : Nat) (x : α) : RingBuffer α :=
-  let _ : Inhabited (RingBuffer α) := ⟨b⟩
-  unwrap! "RingBuffer.set!" (b.set? i x)
+  if h : i < b.sz then b.set ⟨i, h⟩ x
+  else outOfBounds! "RingBuffer.set!" b
 
 namespace Impl
 

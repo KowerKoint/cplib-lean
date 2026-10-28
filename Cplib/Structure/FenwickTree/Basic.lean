@@ -84,8 +84,8 @@ def add? [Add α] (self : FenwickTree α n) (i : Nat) (x : α) : Option (Fenwick
 /-- `add` for a `Nat` index, reporting a panic unless `i < n` and then returning
 the tree unchanged. See `Cplib.unwrap!`: a panic does not stop the program. -/
 def add! [Add α] (self : FenwickTree α n) (i : Nat) (x : α) : FenwickTree α n :=
-  let _ : Inhabited (FenwickTree α n) := ⟨self⟩
-  unwrap! "FenwickTree.add!" (self.add? i x)
+  if h : i < n then self.add ⟨i, h⟩ x
+  else outOfBounds! "FenwickTree.add!" self
 
 /-- `prefixSum` for a `Nat` index: `none` unless `i ≤ n`. -/
 def prefixSum? [Add α] [Zero α] (self : FenwickTree α n) (i : Nat) : Option α :=

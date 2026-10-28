@@ -74,8 +74,8 @@ def addClause? (self : TwoSAT n) (i : Nat) (iValue : Bool)
 does not stop the program. -/
 def addClause! (self : TwoSAT n) (i : Nat) (iValue : Bool)
     (j : Nat) (jValue : Bool) : TwoSAT n :=
-  let _ : Inhabited (TwoSAT n) := ⟨self⟩
-  unwrap! "TwoSAT.addClause!" (self.addClause? i iValue j jValue)
+  if h : i < n ∧ j < n then self.addClause ⟨i, h.1⟩ iValue ⟨j, h.2⟩ jValue
+  else outOfBounds! "TwoSAT.addClause!" self
 
 /-- A satisfying assignment, or `none` when the clauses cannot all hold at once.
 `O(n + C)` for `C` clauses added. -/

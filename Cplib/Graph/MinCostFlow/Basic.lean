@@ -216,8 +216,9 @@ def addEdge? (self : MinCostFlow n) (source target : Nat) (capacity cost : Nat) 
 not stop the program. -/
 def addEdge! (self : MinCostFlow n) (source target : Nat) (capacity cost : Nat) :
     Nat × MinCostFlow n :=
-  let _ : Inhabited (Nat × MinCostFlow n) := ⟨(0, self)⟩
-  unwrap! "MinCostFlow.addEdge!" (self.addEdge? source target capacity cost)
+  if h : source < n ∧ target < n then
+    self.addEdge ⟨source, h.1⟩ ⟨target, h.2⟩ capacity cost
+  else outOfBounds! "MinCostFlow.addEdge!" (0, self)
 
 /-- `flowUpTo` for `Nat` vertices: `none` unless both `source < n` and
 `sink < n`. -/
@@ -232,8 +233,8 @@ def flowUpTo? (self : MinCostFlow n) (source sink : Nat) (limit : Nat) :
 does not stop the program. -/
 def flowUpTo! (self : MinCostFlow n) (source sink : Nat) (limit : Nat) :
     (Nat × Int) × MinCostFlow n :=
-  let _ : Inhabited ((Nat × Int) × MinCostFlow n) := ⟨((0, 0), self)⟩
-  unwrap! "MinCostFlow.flowUpTo!" (self.flowUpTo? source sink limit)
+  if h : source < n ∧ sink < n then self.flowUpTo ⟨source, h.1⟩ ⟨sink, h.2⟩ limit
+  else outOfBounds! "MinCostFlow.flowUpTo!" ((0, 0), self)
 
 /-- `flow` for `Nat` vertices: `none` unless both `source < n` and `sink < n`. -/
 def flow? (self : MinCostFlow n) (source sink : Nat) :
@@ -246,8 +247,8 @@ def flow? (self : MinCostFlow n) (source sink : Nat) :
 `sink < n` and then returning `((0, 0), self)`. See `Cplib.unwrap!`: a panic
 does not stop the program. -/
 def flow! (self : MinCostFlow n) (source sink : Nat) : (Nat × Int) × MinCostFlow n :=
-  let _ : Inhabited ((Nat × Int) × MinCostFlow n) := ⟨((0, 0), self)⟩
-  unwrap! "MinCostFlow.flow!" (self.flow? source sink)
+  if h : source < n ∧ sink < n then self.flow ⟨source, h.1⟩ ⟨sink, h.2⟩
+  else outOfBounds! "MinCostFlow.flow!" ((0, 0), self)
 
 end MinCostFlow
 

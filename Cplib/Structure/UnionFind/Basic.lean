@@ -158,8 +158,10 @@ returning `(0, self)`. See `Cplib.unwrap!`: a panic does not stop the program.
 The representative comes back as a `Nat` rather than a `Fin n`, because `Fin n`
 has no value to fall back on when `n = 0`. -/
 def leader! (self : UnionFind n) (a : Nat) : Nat × UnionFind n :=
-  let _ : Inhabited (Nat × UnionFind n) := ⟨(0, self)⟩
-  unwrap! "UnionFind.leader!" ((self.leader? a).map (fun (root, self) => (root.val, self)))
+  if h : a < n then
+    let (root, self) := self.leader ⟨a, h⟩
+    (root.val, self)
+  else outOfBounds! "UnionFind.leader!" (0, self)
 
 /-- `same` for `Nat` vertices: `none` unless both `a < n` and `b < n`. -/
 def same? (self : UnionFind n) (a b : Nat) : Option (Bool × UnionFind n) :=
@@ -169,8 +171,8 @@ def same? (self : UnionFind n) (a b : Nat) : Option (Bool × UnionFind n) :=
 and then returning `(false, self)`. See `Cplib.unwrap!`: a panic does not stop
 the program. -/
 def same! (self : UnionFind n) (a b : Nat) : Bool × UnionFind n :=
-  let _ : Inhabited (Bool × UnionFind n) := ⟨(false, self)⟩
-  unwrap! "UnionFind.same!" (self.same? a b)
+  if h : a < n ∧ b < n then self.same ⟨a, h.1⟩ ⟨b, h.2⟩
+  else outOfBounds! "UnionFind.same!" (false, self)
 
 /-- `size` for a `Nat` vertex: `none` unless `a < n`. -/
 def size? (self : UnionFind n) (a : Nat) : Option (Nat × UnionFind n) :=
@@ -179,8 +181,8 @@ def size? (self : UnionFind n) (a : Nat) : Option (Nat × UnionFind n) :=
 /-- `size` for a `Nat` vertex, reporting a panic unless `a < n` and then returning
 `(0, self)`. See `Cplib.unwrap!`: a panic does not stop the program. -/
 def size! (self : UnionFind n) (a : Nat) : Nat × UnionFind n :=
-  let _ : Inhabited (Nat × UnionFind n) := ⟨(0, self)⟩
-  unwrap! "UnionFind.size!" (self.size? a)
+  if h : a < n then self.size ⟨a, h⟩
+  else outOfBounds! "UnionFind.size!" (0, self)
 
 /-- `merge` for `Nat` vertices: `none` unless both `a < n` and `b < n`. -/
 def merge? (self : UnionFind n) (a b : Nat) : Option (UnionFind n) :=
@@ -190,8 +192,8 @@ def merge? (self : UnionFind n) (a b : Nat) : Option (UnionFind n) :=
 and then returning the structure unchanged. See `Cplib.unwrap!`: a panic does
 not stop the program. -/
 def merge! (self : UnionFind n) (a b : Nat) : UnionFind n :=
-  let _ : Inhabited (UnionFind n) := ⟨self⟩
-  unwrap! "UnionFind.merge!" (self.merge? a b)
+  if h : a < n ∧ b < n then self.merge ⟨a, h.1⟩ ⟨b, h.2⟩
+  else outOfBounds! "UnionFind.merge!" self
 
 /-- `persistentLeader` for a `Nat` vertex: `none` unless `a < n`. -/
 def persistentLeader? (self : UnionFind n) (a : Nat) : Option (Fin n) :=
@@ -232,8 +234,8 @@ def persistentMerge? (self : UnionFind n) (a b : Nat) : Option (UnionFind n) :=
 `b < n` and then returning the structure unchanged. See `Cplib.unwrap!`: a
 panic does not stop the program. -/
 def persistentMerge! (self : UnionFind n) (a b : Nat) : UnionFind n :=
-  let _ : Inhabited (UnionFind n) := ⟨self⟩
-  unwrap! "UnionFind.persistentMerge!" (self.persistentMerge? a b)
+  if h : a < n ∧ b < n then self.persistentMerge ⟨a, h.1⟩ ⟨b, h.2⟩
+  else outOfBounds! "UnionFind.persistentMerge!" self
 
 namespace Impl
 

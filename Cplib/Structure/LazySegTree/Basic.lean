@@ -77,15 +77,23 @@ def applyNode {cap : Nat} (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2)
     (i : Nat) (f : F) : Vector M (cap * 2) × Vector F (cap * 2) :=
   (setD data i (f • data.getD i 1), setD lazy i (f * lazy.getD i 1))
 
+/-- Push `i`'s pending action down to its two children.
+
+Every value is read out before the first write. Nesting the writes instead, as
+`setD (setD data left …) right (f • data.getD right 1)`, leaves the original
+vector live for the outer argument while the inner write runs, so the write
+finds it shared and copies the whole vector. -/
 def push {cap : Nat} (data : Vector M (cap * 2)) (lazy : Vector F (cap * 2))
     (i : Nat) : Vector M (cap * 2) × Vector F (cap * 2) :=
   let f := lazy.getD i 1
   let left := i * 2
   let right := left + 1
-  let data := setD (setD data left (f • data.getD left 1))
-    right (f • data.getD right 1)
-  let lazy := setD (setD (setD lazy left (f * lazy.getD left 1))
-    right (f * lazy.getD right 1)) i 1
+  let dataLeft := f • data.getD left 1
+  let dataRight := f • data.getD right 1
+  let lazyLeft := f * lazy.getD left 1
+  let lazyRight := f * lazy.getD right 1
+  let data := setD (setD data left dataLeft) right dataRight
+  let lazy := setD (setD (setD lazy left lazyLeft) right lazyRight) i 1
   (data, lazy)
 
 def applyRange {cap : Nat} (f : F) (ql qr : Nat) : Nat → Nat → Nat → Nat →
@@ -164,8 +172,20 @@ def replicate (n : Nat) : LazySegTree M F := ofArray (Array.replicate n 1)
 be `sz`, and `r ≤ l` is a no-op. `O(log sz)`. -/
 def applyRange (self : LazySegTree M F) (l r : Fin (self.sz + 1)) (f : F) :
     LazySegTree M F :=
-  let (data, lazy) := Impl.applyRange f l r self.cap 1 0 self.cap self.data self.lazy
-  { self with data, lazy }
+  -- Every field comes out of the structure before `Impl.applyRange` runs. While
+  -- the tree still holds `data` and `lazy`, each `Vector.set` inside finds them
+  -- shared and copies, which costs `O(sz)` per call instead of `O(log sz)`.
+  let ql := l.val
+  let qr := r.val
+  let sz := self.sz
+  let cap := self.cap
+  let sz_le := self.sz_le
+  let cap_pos := self.cap_pos
+  let cap_pow2 := self.cap_pow2
+  let data := self.data
+  let lazy := self.lazy
+  let (data, lazy) := Impl.applyRange f ql qr cap 1 0 cap data lazy
+  ⟨sz, cap, sz_le, cap_pos, cap_pow2, data, lazy⟩
 
 /-- Product over the half-open range `[l, r)`, left to right, with pending
 actions resolved. `r ≤ l` gives `One M`. `O(log sz)`. -/
@@ -206,8 +226,9 @@ def applyRange? (self : LazySegTree M F) (l r : Nat) (f : F) : Option (LazySegTr
 /-- `applyRange` for `Nat` bounds, reporting a panic unless both `l ≤ sz` and `r ≤ sz` and then
 returning the tree unchanged. See `Cplib.unwrap!`: a panic does not stop the program. -/
 def applyRange! (self : LazySegTree M F) (l r : Nat) (f : F) : LazySegTree M F :=
-  let _ : Inhabited (LazySegTree M F) := ⟨self⟩
-  unwrap! "LazySegTree.applyRange!" (self.applyRange? l r f)
+  if h : l < self.sz + 1 ∧ r < self.sz + 1 then
+    self.applyRange ⟨l, h.1⟩ ⟨r, h.2⟩ f
+  else outOfBounds! "LazySegTree.applyRange!" self
 
 /-- `prod` for `Nat` bounds: `none` unless both `l ≤ sz` and `r ≤ sz`. -/
 def prod? (self : LazySegTree M F) (l r : Nat) : Option M :=
@@ -238,8 +259,8 @@ def apply? (self : LazySegTree M F) (i : Nat) (f : F) : Option (LazySegTree M F)
 /-- `apply` for `Nat` bounds, reporting a panic unless `i < sz` and then
 returning the tree unchanged. See `Cplib.unwrap!`: a panic does not stop the program. -/
 def apply! (self : LazySegTree M F) (i : Nat) (f : F) : LazySegTree M F :=
-  let _ : Inhabited (LazySegTree M F) := ⟨self⟩
-  unwrap! "LazySegTree.apply!" (self.apply? i f)
+  if h : i < self.sz then self.apply ⟨i, h⟩ f
+  else outOfBounds! "LazySegTree.apply!" self
 
 /-- `maxRight` for `Nat` bounds: `none` unless `l ≤ sz`. -/
 def maxRight? (self : LazySegTree M F) (l : Nat) (p : M → Bool) : Option Nat :=

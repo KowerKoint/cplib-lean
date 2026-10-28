@@ -209,8 +209,9 @@ def addEdge? (self : MaxFlow n) (source target : Nat) (capacity : Nat) :
 `target < n` and then returning `(0, self)`. See `Cplib.unwrap!`: a panic does
 not stop the program. -/
 def addEdge! (self : MaxFlow n) (source target : Nat) (capacity : Nat) : Nat × MaxFlow n :=
-  let _ : Inhabited (Nat × MaxFlow n) := ⟨(0, self)⟩
-  unwrap! "MaxFlow.addEdge!" (self.addEdge? source target capacity)
+  if h : source < n ∧ target < n then
+    self.addEdge ⟨source, h.1⟩ ⟨target, h.2⟩ capacity
+  else outOfBounds! "MaxFlow.addEdge!" (0, self)
 
 /-- `changeEdge` for `Nat` arguments: `none` unless `edgeId` names an inserted
 edge and `flow ≤ capacity`. -/
@@ -224,8 +225,9 @@ def changeEdge? (self : MaxFlow n) (edgeId : Nat) (capacity flow : Nat) :
 hold and then returning the network unchanged. See `Cplib.unwrap!`: a panic does
 not stop the program. -/
 def changeEdge! (self : MaxFlow n) (edgeId : Nat) (capacity flow : Nat) : MaxFlow n :=
-  let _ : Inhabited (MaxFlow n) := ⟨self⟩
-  unwrap! "MaxFlow.changeEdge!" (self.changeEdge? edgeId capacity flow)
+  if h : edgeId < self.original.size ∧ flow < capacity + 1 then
+    self.changeEdge ⟨edgeId, h.1⟩ capacity ⟨flow, h.2⟩
+  else outOfBounds! "MaxFlow.changeEdge!" self
 
 /-- `flowUpTo` for `Nat` vertices: `none` unless both `source < n` and
 `sink < n`. -/
@@ -239,8 +241,8 @@ def flowUpTo? (self : MaxFlow n) (source sink : Nat) (limit : Nat) :
 `sink < n` and then returning `(0, self)`. See `Cplib.unwrap!`: a panic does not
 stop the program. -/
 def flowUpTo! (self : MaxFlow n) (source sink : Nat) (limit : Nat) : Nat × MaxFlow n :=
-  let _ : Inhabited (Nat × MaxFlow n) := ⟨(0, self)⟩
-  unwrap! "MaxFlow.flowUpTo!" (self.flowUpTo? source sink limit)
+  if h : source < n ∧ sink < n then self.flowUpTo ⟨source, h.1⟩ ⟨sink, h.2⟩ limit
+  else outOfBounds! "MaxFlow.flowUpTo!" (0, self)
 
 /-- `flow` for `Nat` vertices: `none` unless both `source < n` and `sink < n`. -/
 def flow? (self : MaxFlow n) (source sink : Nat) : Option (Nat × MaxFlow n) :=
@@ -252,8 +254,8 @@ def flow? (self : MaxFlow n) (source sink : Nat) : Option (Nat × MaxFlow n) :=
 `sink < n` and then returning `(0, self)`. See `Cplib.unwrap!`: a panic does not
 stop the program. -/
 def flow! (self : MaxFlow n) (source sink : Nat) : Nat × MaxFlow n :=
-  let _ : Inhabited (Nat × MaxFlow n) := ⟨(0, self)⟩
-  unwrap! "MaxFlow.flow!" (self.flow? source sink)
+  if h : source < n ∧ sink < n then self.flow ⟨source, h.1⟩ ⟨sink, h.2⟩
+  else outOfBounds! "MaxFlow.flow!" (0, self)
 
 /-- `minCut` for a `Nat` vertex: `none` unless `source < n`. -/
 def minCut? (self : MaxFlow n) (source : Nat) : Option (Vector Bool n) :=
