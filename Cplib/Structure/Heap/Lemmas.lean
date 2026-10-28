@@ -146,8 +146,7 @@ theorem top_le_of_mem (heap : Heap α) (hlaw : LawfulCmp heap.cmp) (hvalid : hea
     (Impl.modifyUp heap idx).cmp = heap.cmp := by
   fun_induction Impl.modifyUp <;> simp_all
 
-theorem Impl.modifyUp_data_perm [BEq α] [LawfulBEq α]
-    (heap : Heap α) (idx : Fin heap.n) :
+theorem Impl.modifyUp_data_perm (heap : Heap α) (idx : Fin heap.n) :
     (Impl.modifyUp heap idx).data.toList.Perm heap.data.toList := by
   fun_induction Impl.modifyUp <;> simp_all
   apply List.Perm.trans (by assumption)
@@ -161,8 +160,7 @@ theorem Impl.modifyUp_data_perm [BEq α] [LawfulBEq α]
     (Impl.modifyDown heap idx).cmp = heap.cmp := by
   fun_induction Impl.modifyDown <;> simp_all
 
-theorem Impl.modifyDown_data_perm [BEq α] [LawfulBEq α]
-    (heap : Heap α) (idx : Fin heap.n) :
+theorem Impl.modifyDown_data_perm (heap : Heap α) (idx : Fin heap.n) :
     (Impl.modifyDown heap idx).data.toList.Perm heap.data.toList := by
   fun_induction Impl.modifyDown <;> simp_all
   all_goals
@@ -192,7 +190,7 @@ theorem Impl.modifyDown_data_perm [BEq α] [LawfulBEq α]
     (heap.add x).cmp = heap.cmp := by
   simp [add]
 
-theorem add_data_perm [BEq α] [LawfulBEq α] (heap : Heap α) (x : α) :
+theorem add_data_perm (heap : Heap α) (x : α) :
     (heap.add x).data.toList.Perm (heap.data.toList ++ [x]) := by
   unfold add
   apply List.Perm.trans (Impl.modifyUp_data_perm _ _)
@@ -476,7 +474,7 @@ theorem Impl.modifyDown_ValidFrom : ∀ (heap : Heap α) (idx : Fin heap.n) (b :
       · rw [ih, Impl.modifyDown_cmp]
       · exact ih heap
 
-theorem Impl.heapifyFrom_data_perm [BEq α] [LawfulBEq α] (heap : Heap α) (k : Nat) :
+theorem Impl.heapifyFrom_data_perm (heap : Heap α) (k : Nat) :
     (Impl.heapifyFrom heap k).data.toList.Perm heap.data.toList := by
   induction k generalizing heap with
   | zero => exact List.Perm.refl _
@@ -496,8 +494,7 @@ theorem Impl.heapifyFrom_data_perm [BEq α] [LawfulBEq α] (heap : Heap α) (k :
     (ofArray xs cmp).cmp = cmp := by
   simp [ofArray]
 
-theorem ofArray_data_perm [BEq α] [LawfulBEq α]
-    (xs : Array α) (cmp : α → α → Ordering) :
+theorem ofArray_data_perm (xs : Array α) (cmp : α → α → Ordering) :
     (ofArray xs cmp).data.toList.Perm xs.toList := by
   unfold ofArray
   exact Impl.heapifyFrom_data_perm _ _
@@ -549,7 +546,7 @@ theorem ofArray_Valid (xs : Array α) (cmp : α → α → Ordering) (hlaw : Law
   split <;> simp
 
 /-- `pop` removes one occurrence of `top` and keeps every other element. -/
-theorem pop_data_perm [BEq α] [LawfulBEq α] (heap : Heap α) (h : 0 < heap.n) :
+theorem pop_data_perm (heap : Heap α) (h : 0 < heap.n) :
     ((heap.pop h).data.toList ++ [heap.top h]).Perm heap.data.toList := by
   let last : Fin heap.n := ⟨heap.n - 1, by omega⟩
   let swapped := heap.data.swap 0 last
@@ -611,7 +608,7 @@ most what the next `pop` would remove.
 
 The next `top` is still one of the heap's elements, and `top_le` puts the
 current one below all of them. -/
-theorem top_le_top_pop [BEq α] [LawfulBEq α] (heap : Heap α) (hlaw : LawfulCmp heap.cmp)
+theorem top_le_top_pop (heap : Heap α) (hlaw : LawfulCmp heap.cmp)
     (hvalid : heap.Valid) (h : 0 < heap.n) (h' : 0 < (heap.pop h).n) :
     LE heap.cmp (heap.top h) ((heap.pop h).top h') :=
   top_le_of_mem heap hlaw hvalid h
@@ -702,7 +699,7 @@ theorem drain_eq (heap : Heap α) :
         simp [hn]
 
 /-- `drain` hands back exactly the elements the heap held. -/
-theorem drain_perm [BEq α] [LawfulBEq α] (heap : Heap α) :
+theorem drain_perm (heap : Heap α) :
     heap.drain.Perm heap.data.toList := by
   induction heap using pop_induction with
   | step heap ih =>
@@ -718,7 +715,7 @@ theorem drain_perm [BEq α] [LawfulBEq α] (heap : Heap α) :
 
 /-- Draining a heap in order yields a sorted list: not merely non-decreasing
 step to step, but every element below every later one. -/
-theorem drain_sorted [BEq α] [LawfulBEq α] : ∀ (heap : Heap α), LawfulCmp heap.cmp →
+theorem drain_sorted : ∀ (heap : Heap α), LawfulCmp heap.cmp →
     heap.Valid → heap.drain.Sorted (LE heap.cmp) := by
   intro heap
   induction heap using pop_induction with
@@ -740,14 +737,14 @@ theorem drain_sorted [BEq α] [LawfulBEq α] : ∀ (heap : Heap α), LawfulCmp h
         exact List.sorted_nil
 
 /-- Heapsort: `ofArray` then `drain` sorts an array. -/
-theorem drain_ofArray_sorted [BEq α] [LawfulBEq α] (xs : Array α) (cmp : α → α → Ordering)
+theorem drain_ofArray_sorted (xs : Array α) (cmp : α → α → Ordering)
     (hlaw : LawfulCmp cmp) : ((ofArray xs cmp).drain).Sorted (LE cmp) := by
   have hsorted := drain_sorted (ofArray xs cmp) (by rw [ofArray_cmp]; exact hlaw)
     (ofArray_Valid xs cmp hlaw)
   rwa [ofArray_cmp] at hsorted
 
 /-- …and it sorts exactly the elements it was given. -/
-theorem drain_ofArray_perm [BEq α] [LawfulBEq α] (xs : Array α) (cmp : α → α → Ordering) :
+theorem drain_ofArray_perm (xs : Array α) (cmp : α → α → Ordering) :
     ((ofArray xs cmp).drain).Perm xs.toList :=
   (drain_perm _).trans (ofArray_data_perm xs cmp)
 

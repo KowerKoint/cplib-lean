@@ -1,49 +1,59 @@
 import Lean.Elab.Tactic.Omega
 import Mathlib.Data.List.FinRange
 
+namespace List
+
+/-- Bringing the element at `k` to the front, and putting `a` where it was,
+permutes the list. -/
+private theorem perm_getElem_cons_set (a : α) : ∀ (l : List α) (k : Nat) (hk : k < l.length),
+    (l[k] :: l.set k a).Perm (a :: l) := by
+  intro l
+  induction l with
+  | nil => intro k hk; simp at hk
+  | cons b s ih =>
+      intro k hk
+      cases k with
+      | zero => simpa using List.Perm.swap a b s
+      | succ m =>
+          have hm : m < s.length := by simpa using hk
+          calc (b :: s)[m + 1] :: (b :: s).set (m + 1) a
+              = s[m] :: b :: s.set m a := by simp
+            _ ~ b :: s[m] :: s.set m a := List.Perm.swap _ _ _
+            _ ~ b :: a :: s := List.Perm.cons b (ih m hm)
+            _ ~ a :: b :: s := List.Perm.swap _ _ _
+
+/-- Exchanging the elements at two indices permutes the list. -/
+private theorem perm_set_set : ∀ (l : List α) (i j : Nat) (hi : i < l.length)
+    (hj : j < l.length), ((l.set i l[j]).set j l[i]).Perm l := by
+  intro l
+  induction l with
+  | nil => intro i j hi _; simp at hi
+  | cons a t ih =>
+      intro i j hi hj
+      cases i with
+      | zero =>
+          cases j with
+          | zero => simp
+          | succ k =>
+              have hk : k < t.length := by simpa using hj
+              simpa using perm_getElem_cons_set a t k hk
+      | succ m =>
+          have hm : m < t.length := by simpa using hi
+          cases j with
+          | zero => simpa using perm_getElem_cons_set a t m hm
+          | succ k =>
+              have hk : k < t.length := by simpa using hj
+              simpa using List.Perm.cons a (ih m k hm hk)
+
+end List
+
 namespace Vector
 
-private theorem List.perm_swap [BEq α] [LawfulBEq α]
-    (l : List α) (i j : Nat) (hi : i < l.length) (hj : j < l.length) :
-    ((l.set i l[j]).set j l[i]).Perm l := by
-  rw [List.perm_iff_count]
-  intro a
-  rw [List.count_set (by simpa using hj), List.count_set hi]
-  simp only [List.getElem_set]
-  by_cases hij : i = j
-  · subst j
-    simp only
-    by_cases hia : l[i] == a
-    · have hc : 0 < l.count a := List.count_pos_iff.mpr (by
-        have hia' : l[i] = a := by simpa using hia
-        rw [← hia']
-        exact List.getElem_mem hi)
-      simp only [hia, if_true]
-      omega
-    · simp [hia]
-  · simp only [if_neg hij]
-    by_cases hia : l[i] == a <;> by_cases hja : l[j] == a
-    · have hc : 0 < l.count a := List.count_pos_iff.mpr (by
-        have hia' : l[i] = a := by simpa using hia
-        rw [← hia']
-        exact List.getElem_mem hi)
-      simp only [hia, hja, if_true]
-      omega
-    · have hc : 0 < l.count a := List.count_pos_iff.mpr (by
-        have hia' : l[i] = a := by simpa using hia
-        rw [← hia']
-        exact List.getElem_mem hi)
-      simp only [hia, hja, if_true]
-      omega
-    · simp [hia, hja]
-    · simp [hia, hja]
-
 /-- `Vector.swap` only permutes, so it preserves the multiset of elements. -/
-theorem toList_swap_perm [BEq α] [LawfulBEq α]
-    (v : Vector α n) (i j : Fin n) :
+theorem toList_swap_perm (v : Vector α n) (i j : Fin n) :
     (v.swap i j).toList.Perm v.toList := by
   rw [Vector.toList_swap]
-  exact List.perm_swap v.toList i.val j.val (by simp) (by simp)
+  exact List.perm_set_set v.toList i.val j.val (by simp) (by simp)
 
 /-- Folding `Vector.set` leaves every index untouched that none of the updates
 targets. -/
