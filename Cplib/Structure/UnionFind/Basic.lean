@@ -239,6 +239,28 @@ def persistentMerge! (self : UnionFind n) (a b : Nat) : UnionFind n :=
 
 namespace Impl
 
+/-- Bucket the vertices `i, …, n - 1` under their roots, on top of the buckets
+already filled.
+
+The bucket is taken out of the vector before `push` appends to it. Left in
+place, it would be referred to both by the vector and by the argument of
+`Vector.set`, so `push` would copy the whole bucket and filling one component of
+`k` vertices would cost `O(k²)`.
+
+Written as a loop over the index rather than as a fold, so that the
+specification in `Structure.UnionFind.Lemmas` can run an induction along it. -/
+def collectGroupsFrom (self : UnionFind n) (i : Nat) (order : Array (Fin n))
+    (buckets : Vector (Array Nat) n) :
+    Array (Fin n) × Vector (Array Nat) n × UnionFind n :=
+  if h : i < n then
+    let (root, self) := self.leader ⟨i, h⟩
+    let bucket := buckets[root]
+    let buckets := buckets.set root #[]
+    collectGroupsFrom self (i + 1) (if bucket.isEmpty then order.push root else order)
+      (buckets.set root (bucket.push i))
+  else (order, buckets, self)
+termination_by n - i
+
 /-- Bucket every vertex under its root.
 
 Buckets are indexed by the root itself, so this is `O(n α(n))` overall. `order`
@@ -246,13 +268,7 @@ records each root the first time it is seen, which fixes the order of the
 returned components. -/
 def collectGroups (self : UnionFind n) :
     Array (Fin n) × Vector (Array Nat) n × UnionFind n :=
-  Nat.fold n (fun i h (order, buckets, self) =>
-    let (root, self) := self.leader ⟨i, h⟩
-    if buckets[root].isEmpty then
-      (order.push root, buckets.set root #[i], self)
-    else
-      (order, buckets.set root (buckets[root].push i), self))
-    (#[], Vector.replicate n #[], self)
+  collectGroupsFrom self 0 #[] (Vector.replicate n #[])
 
 end Impl
 
