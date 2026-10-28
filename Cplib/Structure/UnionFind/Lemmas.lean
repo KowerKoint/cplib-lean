@@ -10,20 +10,19 @@ namespace Cplib
 
 Specification of the union-find in `Structure.UnionFind.Basic`.
 
-`Valid` is the invariant every state this API produces: sizes rise along every
-parent edge. It is what makes a representative meaningful, since a walk that
-cannot revisit a vertex reaches a root in fewer than `n` steps, and `empty`,
-`merge` and `persistentMerge` all keep it.
+`Valid` is the invariant every state this API produces, and `empty`, `merge` and
+`persistentMerge` all keep it. It has two halves. `Ordered` says sizes rise
+along every parent edge, which is what makes a representative meaningful: a walk
+that cannot revisit a vertex reaches a root in fewer than `n` steps. On top of
+that, the size recorded at a root counts the vertices that root represents, so
+`size` and `persistentSize` report the number of vertices in the component
+rather than a number the structure merely carried.
 
 The two families of operations are related here rather than specified twice.
 `leader`, `same`, `size` and `merge` answer exactly what `persistentLeader`,
 `persistentSame`, `persistentSize` and `persistentMerge` answer, and the state
 they hand back has the same representatives as the one they were given. Path
 compression is an optimisation that cannot be observed through the API.
-
-Not covered here: that `size` and `persistentSize` report the number of vertices
-in the component, rather than merely the number the structure recorded. That
-needs a counting invariant this file does not carry.
 -/
 
 namespace UnionFind
@@ -110,16 +109,16 @@ Union by size keeps this: the root that loses a merge keeps the size it had,
 while the one that wins takes the sum. Sizes therefore rise along every parent
 edge, so no path can visit a vertex twice, and a walk reaches a root in fewer
 than `n` steps. -/
-structure Valid (uf : UnionFind n) : Prop where
+structure Ordered (uf : UnionFind n) : Prop where
   size_pos : ∀ a : Fin n, 0 < uf.componentSize[a]
   size_lt : ∀ a : Fin n, uf.parent[a] ≠ a →
     uf.componentSize[a] < uf.componentSize[uf.parent[a]]
 
-namespace Valid
+namespace Ordered
 variable {self : UnionFind n}
 
 /-- Along a path that has not reached a root, sizes strictly rise. -/
-private theorem size_iter_lt (h : self.Valid) (a : Fin n) (k : Nat)
+private theorem size_iter_lt (h : self.Ordered) (a : Fin n) (k : Nat)
     (hk : ∀ i, i < k → self.parent[Impl.iter self i a] ≠ Impl.iter self i a) :
     ∀ i j, i < j → j ≤ k →
       self.componentSize[Impl.iter self i a] < self.componentSize[Impl.iter self j a] := by
@@ -138,7 +137,7 @@ private theorem size_iter_lt (h : self.Valid) (a : Fin n) (k : Nat)
 
 /-- A walk reaches a root in fewer than `n` steps: sizes rise along it, so it
 cannot visit a vertex twice, and there are only `n` to visit. -/
-theorem exists_fix (h : self.Valid) (a : Fin n) :
+theorem exists_fix (h : self.Ordered) (a : Fin n) :
     ∃ j, j < n ∧ self.parent[Impl.iter self j a] = Impl.iter self j a := by
   by_contra hc
   push_neg at hc
@@ -157,7 +156,7 @@ theorem exists_fix (h : self.Valid) (a : Fin n) :
   simp at this
 
 /-- The first root along the walk from `a`, reached in fewer than `n` steps. -/
-theorem exists_least_fix (h : self.Valid) (a : Fin n) :
+theorem exists_least_fix (h : self.Ordered) (a : Fin n) :
     ∃ j, j < n ∧ self.parent[Impl.iter self j a] = Impl.iter self j a ∧
       ∀ i, i < j → self.parent[Impl.iter self i a] ≠ Impl.iter self i a := by
   obtain ⟨j, hjn, hj⟩ := h.exists_fix a
@@ -167,7 +166,7 @@ theorem exists_least_fix (h : self.Valid) (a : Fin n) :
     fun i hi => Nat.find_min hex hi⟩
 
 /-- `persistentLeader` is what the walk arrives at. -/
-theorem persistentLeader_eq_iter (h : self.Valid) (a : Fin n) :
+theorem persistentLeader_eq_iter (h : self.Ordered) (a : Fin n) :
     ∃ j, j < n ∧ self.persistentLeader a = Impl.iter self j a ∧
       self.parent[Impl.iter self j a] = Impl.iter self j a := by
   obtain ⟨j, hjn, hfix, hmin⟩ := h.exists_least_fix a
@@ -176,7 +175,7 @@ theorem persistentLeader_eq_iter (h : self.Valid) (a : Fin n) :
   exact Impl.persistentLeaderFuel_eq_iter self a j n (by omega) hfix hmin
 
 /-- Any fuel from `n - 1` on computes `persistentLeader`: no walk is longer. -/
-theorem persistentLeaderFuel_eq (h : self.Valid) (a : Fin n) (k : Nat) (hk : n - 1 ≤ k) :
+theorem persistentLeaderFuel_eq (h : self.Ordered) (a : Fin n) (k : Nat) (hk : n - 1 ≤ k) :
     Impl.persistentLeaderFuel k self a = self.persistentLeader a := by
   obtain ⟨j, hjn, hfix, hmin⟩ := h.exists_least_fix a
   rw [Impl.persistentLeaderFuel_eq_iter self a j k (by omega) hfix hmin]
@@ -184,14 +183,14 @@ theorem persistentLeaderFuel_eq (h : self.Valid) (a : Fin n) (k : Nat) (hk : n -
   rw [Impl.persistentLeaderFuel_eq_iter self a j n (by omega) hfix hmin]
 
 /-- `persistentLeader` lands on a root. -/
-@[simp] theorem parent_persistentLeader (h : self.Valid) (a : Fin n) :
+@[simp] theorem parent_persistentLeader (h : self.Ordered) (a : Fin n) :
     self.parent[self.persistentLeader a] = self.persistentLeader a := by
   obtain ⟨j, _, heq, hfix⟩ := h.persistentLeader_eq_iter a
   rw [heq]
   exact hfix
 
 /-- Stepping to the parent does not change the representative. -/
-theorem persistentLeader_parent (h : self.Valid) (a : Fin n) :
+theorem persistentLeader_parent (h : self.Ordered) (a : Fin n) :
     self.persistentLeader self.parent[a] = self.persistentLeader a := by
   by_cases hp : self.parent[a] = a
   · rw [hp]
@@ -203,13 +202,13 @@ theorem persistentLeader_parent (h : self.Valid) (a : Fin n) :
     rw [hfuel, Impl.persistentLeaderFuel_succ_of_ne self a (n - 1) hp,
       h.persistentLeaderFuel_eq self.parent[a] (n - 1) (le_refl _)]
 
-@[simp] theorem persistentLeader_idem (h : self.Valid) (a : Fin n) :
+@[simp] theorem persistentLeader_idem (h : self.Ordered) (a : Fin n) :
     self.persistentLeader (self.persistentLeader a) = self.persistentLeader a :=
   persistentLeader_eq_self self (h.parent_persistentLeader a)
 
 /-- Induction by walking to the root: prove it of every root, and of `a` given
 it for `a`'s parent. -/
-theorem parent_induction (h : self.Valid) {motive : Fin n → Prop}
+theorem parent_induction (h : self.Ordered) {motive : Fin n → Prop}
     (base : ∀ a, self.parent[a] = a → motive a)
     (step : ∀ a, self.parent[a] ≠ a → motive self.parent[a] → motive a)
     (a : Fin n) : motive a := by
@@ -228,7 +227,7 @@ theorem parent_induction (h : self.Valid) {motive : Fin n → Prop}
   exact key j a hfix
 
 /-- Sizes do not fall on the way to the root. -/
-theorem size_le_size_persistentLeader (h : self.Valid) (a : Fin n) :
+theorem size_le_size_persistentLeader (h : self.Ordered) (a : Fin n) :
     self.componentSize[a] ≤ self.componentSize[self.persistentLeader a] := by
   induction a using h.parent_induction with
   | base a ha => rw [persistentLeader_eq_self self ha]
@@ -236,11 +235,45 @@ theorem size_le_size_persistentLeader (h : self.Valid) (a : Fin n) :
       rw [← h.persistentLeader_parent a]
       exact Nat.le_trans (Nat.le_of_lt (h.size_lt a ha)) ih
 
-end Valid
+end Ordered
+
+@[simp] theorem empty_persistentLeader {n : Nat} (i : Fin n) :
+    (empty n).persistentLeader i = i :=
+  persistentLeader_eq_self _ (by simp [empty])
+
+/-- The vertices `r` represents: those whose walk up the parents ends at `r`.
+
+Only the roots represent anything: in an `Ordered` state `persistentLeader`
+lands on a root, so the component of a non-root is empty. -/
+def component (self : UnionFind n) (r : Fin n) : Finset (Fin n) :=
+  Finset.univ.filter fun v => self.persistentLeader v = r
+
+@[simp] theorem mem_component {self : UnionFind n} {r v : Fin n} :
+    v ∈ self.component r ↔ self.persistentLeader v = r := by
+  simp [component]
+
+/-- The invariant every state this API produces.
+
+`Ordered` is the half that makes a representative meaningful. On top of it, the
+size recorded at a root is the number of vertices that root represents, which is
+what makes `size` and `persistentSize` answer the question they claim to.
+
+Union by size keeps the count: a link adds the two sizes, and the two components
+it joins are disjoint, so the sum is the size of the component that comes out.
+Path compression moves no vertex between components and touches no size. -/
+structure Valid (uf : UnionFind n) : Prop extends Ordered uf where
+  size_eq_card : ∀ r : Fin n, uf.parent[r] = r →
+    uf.componentSize[r] = (uf.component r).card
 
 @[simp] theorem empty_Valid (n : Nat) : (empty n).Valid where
   size_pos a := by simp [empty]
   size_lt a ha := absurd (by simp [empty]) ha
+  size_eq_card r _ := by
+    have hcomp : (empty n).component r = {r} := by
+      ext v
+      simp
+    rw [hcomp, Finset.card_singleton]
+    simp [empty]
 
 namespace Impl
 
@@ -256,11 +289,11 @@ def attach (self : UnionFind n) (x y : Fin n) (s : Nat) : UnionFind n :=
     (attach self x y s).componentSize[c] = if y = c then s else self.componentSize[c] := by
   simp [attach, Vector.getElem_set, Fin.val_inj]
 
-/-- Hanging a root under a root of at least its size keeps the invariant. -/
-theorem attach_Valid {self : UnionFind n} (h : self.Valid) {x y : Fin n} {s : Nat}
+/-- Hanging a root under a root of at least its size keeps the order. -/
+theorem attach_Ordered {self : UnionFind n} (h : self.Ordered) {x y : Fin n} {s : Nat}
     (hy : self.parent[y] = y) (hxy : x ≠ y)
     (hsx : self.componentSize[x] < s) (hsy : self.componentSize[y] ≤ s) :
-    (attach self x y s).Valid where
+    (attach self x y s).Ordered where
   size_pos c := by
     rw [attach_componentSize]
     split
@@ -288,9 +321,9 @@ theorem attach_Valid {self : UnionFind n} (h : self.Valid) {x y : Fin n} {s : Na
 
 /-- …and it sends exactly `x`'s component to `y`, leaving every other
 representative alone. -/
-theorem attach_persistentLeader {self : UnionFind n} (h : self.Valid) {x y : Fin n} {s : Nat}
+theorem attach_persistentLeader {self : UnionFind n} (h : self.Ordered) {x y : Fin n} {s : Nat}
     (hx : self.parent[x] = x) (hy : self.parent[y] = y) (hxy : x ≠ y)
-    (h' : (attach self x y s).Valid) (c : Fin n) :
+    (h' : (attach self x y s).Ordered) (c : Fin n) :
     (attach self x y s).persistentLeader c =
       if self.persistentLeader c = x then y else self.persistentLeader c := by
   induction c using h.parent_induction with
@@ -308,6 +341,49 @@ theorem attach_persistentLeader {self : UnionFind n} (h : self.Valid) {x y : Fin
         h.persistentLeader_parent c]
 
 
+/-- …so the component of `y` takes in the whole component of `x`, and no other
+component changes. -/
+theorem attach_component {self : UnionFind n} (h : self.Ordered) {x y : Fin n} {s : Nat}
+    (hx : self.parent[x] = x) (hy : self.parent[y] = y) (hxy : x ≠ y)
+    (h' : (attach self x y s).Ordered) {r : Fin n} (hrx : r ≠ x) :
+    (attach self x y s).component r =
+      if r = y then self.component x ∪ self.component y else self.component r := by
+  ext v
+  simp only [mem_component, attach_persistentLeader h hx hy hxy h' v]
+  by_cases hry : r = y
+  · subst hry
+    by_cases hv : self.persistentLeader v = x <;> simp [hv]
+  · simp only [if_neg hry]
+    by_cases hv : self.persistentLeader v = x
+    · simp [hv, Ne.symm hry, Ne.symm hrx]
+    · simp [hv]
+
+/-- Hanging a root under a root keeps the invariant: the component that comes
+out holds the vertices of both the ones that went in, and they are disjoint, so
+the sum of their sizes counts it. -/
+theorem attach_Valid {self : UnionFind n} (h : self.Valid) {x y : Fin n}
+    (hx : self.parent[x] = x) (hy : self.parent[y] = y) (hxy : x ≠ y) :
+    (attach self x y (self.componentSize[x] + self.componentSize[y])).Valid := by
+  have hord : (attach self x y (self.componentSize[x] + self.componentSize[y])).Ordered :=
+    attach_Ordered h.toOrdered hy hxy (by have := h.size_pos y; omega) (by omega)
+  refine ⟨hord, fun r hr => ?_⟩
+  rw [attach_parent] at hr
+  have hrx : r ≠ x := by
+    rintro rfl
+    rw [if_pos rfl] at hr
+    exact hxy hr.symm
+  rw [if_neg fun hh => hrx hh.symm] at hr
+  rw [attach_componentSize, attach_component h.toOrdered hx hy hxy hord hrx]
+  by_cases hry : r = y
+  · have hdisj : Disjoint (self.component x) (self.component y) := by
+      rw [Finset.disjoint_left]
+      intro v hvx hvy
+      simp only [mem_component] at hvx hvy
+      exact hxy (hvx.symm.trans hvy)
+    rw [if_pos hry.symm, if_pos hry, Finset.card_union_of_disjoint hdisj,
+      ← h.size_eq_card x hx, ← h.size_eq_card y hy]
+  · rw [if_neg fun hh => hry hh.symm, if_neg hry, h.size_eq_card r hr]
+
 theorem link_eq_attach (self : UnionFind n) {x y : Fin n} (hxy : x ≠ y) :
     link self x y = if self.componentSize[x] < self.componentSize[y]
       then attach self x y (self.componentSize[x] + self.componentSize[y])
@@ -315,7 +391,18 @@ theorem link_eq_attach (self : UnionFind n) {x y : Fin n} (hxy : x ≠ y) :
   rw [link.eq_def, if_neg hxy]
   split <;> rfl
 
-/-- Linking two roots keeps the invariant. -/
+/-- Linking two roots keeps the order. -/
+theorem link_Ordered {self : UnionFind n} (h : self.Ordered) {x y : Fin n}
+    (hx : self.parent[x] = x) (hy : self.parent[y] = y) : (link self x y).Ordered := by
+  by_cases hxy : x = y
+  · rw [link.eq_def, if_pos hxy]
+    exact h
+  · rw [link_eq_attach self hxy]
+    split
+    · exact attach_Ordered h hy hxy (by have := h.size_pos y; omega) (by omega)
+    · exact attach_Ordered h hx (Ne.symm hxy) (by have := h.size_pos x; omega) (by omega)
+
+/-- Linking two roots keeps the invariant, counting included. -/
 theorem link_Valid {self : UnionFind n} (h : self.Valid) {x y : Fin n}
     (hx : self.parent[x] = x) (hy : self.parent[y] = y) : (link self x y).Valid := by
   by_cases hxy : x = y
@@ -323,12 +410,13 @@ theorem link_Valid {self : UnionFind n} (h : self.Valid) {x y : Fin n}
     exact h
   · rw [link_eq_attach self hxy]
     split
-    · exact attach_Valid h hy hxy (by have := h.size_pos y; omega) (by omega)
-    · exact attach_Valid h hx (Ne.symm hxy) (by have := h.size_pos x; omega) (by omega)
+    · exact attach_Valid h hx hy hxy
+    · rw [Nat.add_comm self.componentSize[x] self.componentSize[y]]
+      exact attach_Valid h hy hx (Ne.symm hxy)
 
 /-- Linking two roots merges exactly their two components, and leaves every other
 representative where it was. -/
-theorem link_persistentLeader {self : UnionFind n} (h : self.Valid) {x y : Fin n}
+theorem link_persistentLeader {self : UnionFind n} (h : self.Ordered) {x y : Fin n}
     (hx : self.parent[x] = x) (hy : self.parent[y] = y) :
     ∃ w, (w = x ∨ w = y) ∧ ∀ c, (link self x y).persistentLeader c =
       if self.persistentLeader c = x ∨ self.persistentLeader c = y then w
@@ -343,21 +431,21 @@ theorem link_persistentLeader {self : UnionFind n} (h : self.Valid) {x y : Fin n
     · refine ⟨y, Or.inr rfl, fun c => ?_⟩
       rw [hlink, if_pos hlt,
         attach_persistentLeader h hx hy hxy
-          (attach_Valid h hy hxy (by have := h.size_pos y; omega) (by omega)) c]
+          (attach_Ordered h hy hxy (by have := h.size_pos y; omega) (by omega)) c]
       by_cases hc : self.persistentLeader c = x
       · simp [hc]
       · by_cases hc' : self.persistentLeader c = y <;> simp [hc, hc']
     · refine ⟨x, Or.inl rfl, fun c => ?_⟩
       rw [hlink, if_neg hlt,
         attach_persistentLeader h hy hx (Ne.symm hxy)
-          (attach_Valid h hx (Ne.symm hxy) (by have := h.size_pos x; omega) (by omega)) c]
+          (attach_Ordered h hx (Ne.symm hxy) (by have := h.size_pos x; omega) (by omega)) c]
       by_cases hc : self.persistentLeader c = y
       · simp [hc]
       · by_cases hc' : self.persistentLeader c = x <;> simp [hc, hc']
 
 /-- Two vertices come out connected after a link exactly when they already were,
 or when one sits on each side of it. -/
-theorem link_persistentLeader_eq {self : UnionFind n} (h : self.Valid) {x y : Fin n}
+theorem link_persistentLeader_eq {self : UnionFind n} (h : self.Ordered) {x y : Fin n}
     (hx : self.parent[x] = x) (hy : self.parent[y] = y) (c d : Fin n) :
     (link self x y).persistentLeader c = (link self x y).persistentLeader d ↔
       self.persistentLeader c = self.persistentLeader d ∨
@@ -373,16 +461,16 @@ theorem link_persistentLeader_eq {self : UnionFind n} (h : self.Valid) {x y : Fi
 
 end Impl
 
-namespace Valid
+namespace Ordered
 variable {self : UnionFind n}
 
 /-- Sizes strictly rise from a non-root to its representative. -/
-theorem size_lt_size_persistentLeader (h : self.Valid) {a : Fin n} (ha : self.parent[a] ≠ a) :
+theorem size_lt_size_persistentLeader (h : self.Ordered) {a : Fin n} (ha : self.parent[a] ≠ a) :
     self.componentSize[a] < self.componentSize[self.persistentLeader a] := by
   rw [← h.persistentLeader_parent a]
   exact Nat.lt_of_lt_of_le (h.size_lt a ha) (h.size_le_size_persistentLeader _)
 
-end Valid
+end Ordered
 
 namespace Impl
 
@@ -398,10 +486,10 @@ def compress (self : UnionFind n) (a : Fin n) (r : Fin n) : UnionFind n :=
 @[simp] theorem compress_componentSize (self : UnionFind n) (a r c : Fin n) :
     (compress self a r).componentSize[c] = self.componentSize[c] := rfl
 
-/-- Pointing a vertex straight at its representative keeps the invariant: the
+/-- Pointing a vertex straight at its representative keeps the order: the
 representative is where the sizes along the path end up. -/
-theorem compress_Valid {self : UnionFind n} (h : self.Valid) (a : Fin n) :
-    (compress self a (self.persistentLeader a)).Valid where
+theorem compress_Ordered {self : UnionFind n} (h : self.Ordered) (a : Fin n) :
+    (compress self a (self.persistentLeader a)).Ordered where
   size_pos c := h.size_pos c
   size_lt c hc := by
     rw [compress_parent] at hc
@@ -415,9 +503,9 @@ theorem compress_Valid {self : UnionFind n} (h : self.Valid) (a : Fin n) :
       exact h.size_lt c hc
 
 /-- …and it changes no representative. -/
-theorem compress_persistentLeader {self : UnionFind n} (h : self.Valid) (a : Fin n) (c : Fin n) :
+theorem compress_persistentLeader {self : UnionFind n} (h : self.Ordered) (a : Fin n) (c : Fin n) :
     (compress self a (self.persistentLeader a)).persistentLeader c = self.persistentLeader c := by
-  have h' := compress_Valid h a
+  have h' := compress_Ordered h a
   have hroot : ∀ b : Fin n, self.parent[b] = b →
       (compress self a (self.persistentLeader a)).parent[b] = b := by
     intro b hb
@@ -437,6 +525,24 @@ theorem compress_persistentLeader {self : UnionFind n} (h : self.Valid) (a : Fin
         rw [if_pos rfl,
           persistentLeader_eq_self _ (hroot _ (h.parent_persistentLeader a))]
       · rw [if_neg hac, ih, h.persistentLeader_parent c]
+
+/-- Compression keeps the invariant: it moves no vertex between components and
+leaves every size where it was. -/
+theorem compress_Valid {self : UnionFind n} (h : self.Valid) (a : Fin n) :
+    (compress self a (self.persistentLeader a)).Valid := by
+  refine ⟨compress_Ordered h.toOrdered a, fun r hr => ?_⟩
+  rw [compress_parent] at hr
+  have hroot : self.parent[r] = r := by
+    by_cases har : a = r
+    · subst har
+      rw [if_pos rfl] at hr
+      have hpl := h.parent_persistentLeader a
+      rwa [hr] at hpl
+    · rwa [if_neg har] at hr
+  rw [compress_componentSize, h.size_eq_card r hroot]
+  congr 1
+  ext v
+  simp [compress_persistentLeader h.toOrdered a v]
 
 theorem leaderFuel_succ_of_eq (self : UnionFind n) (a : Fin n) (fuel : Nat)
     (hp : self.parent[a] = a) : leaderFuel (fuel + 1) self a = (a, self) := by
@@ -481,7 +587,7 @@ theorem leaderFuel_spec {self : UnionFind n} (h : self.Valid) (fuel : Nat) (a : 
         · rw [hval]
           exact compress_Valid h2 a
         · intro c
-          rw [hval, compress_persistentLeader h2 a c]
+          rw [hval, compress_persistentLeader h2.toOrdered a c]
           exact h3 c
 
 end Impl
@@ -508,9 +614,26 @@ theorem persistentSame_trans {self : UnionFind n} {a b c : Fin n}
 theorem persistentSize_eq (self : UnionFind n) (a : Fin n) :
     self.persistentSize a = self.componentSize[self.persistentLeader a] := rfl
 
-@[simp] theorem empty_persistentLeader {n : Nat} (i : Fin n) :
-    (empty n).persistentLeader i = i :=
-  persistentLeader_eq_self _ (by simp [empty])
+/-- The component `a` belongs to is the set of vertices connected to `a`. -/
+theorem component_persistentLeader (self : UnionFind n) (a : Fin n) :
+    self.component (self.persistentLeader a) =
+      Finset.univ.filter fun v => self.persistentSame v a := by
+  ext v
+  simp [persistentSame_iff]
+
+/-- `persistentSize a` is the number of vertices connected to `a`, and not merely
+the number the structure happens to carry. -/
+theorem persistentSize_eq_card {self : UnionFind n} (h : self.Valid) (a : Fin n) :
+    self.persistentSize a = (Finset.univ.filter fun v => self.persistentSame v a).card := by
+  rw [persistentSize_eq, h.size_eq_card _ (h.parent_persistentLeader a),
+    component_persistentLeader self a]
+
+/-- A component holds at most every vertex. -/
+theorem persistentSize_le {self : UnionFind n} (h : self.Valid) (a : Fin n) :
+    self.persistentSize a ≤ n := by
+  rw [persistentSize_eq_card h]
+  simpa using Finset.card_filter_le (Finset.univ : Finset (Fin n))
+    fun v => self.persistentSame v a
 
 @[simp] theorem empty_persistentSame {n : Nat} (i j : Fin n) :
     (empty n).persistentSame i j = (i == j) := by simp [persistentSame]
@@ -532,7 +655,7 @@ theorem persistentMerge_persistentSame {self : UnionFind n} (h : self.Valid) (a 
         (self.persistentSame c a ∧ self.persistentSame d b) ∨
         (self.persistentSame c b ∧ self.persistentSame d a) := by
   simp only [persistentSame_iff, persistentMerge]
-  exact Impl.link_persistentLeader_eq h (h.parent_persistentLeader a)
+  exact Impl.link_persistentLeader_eq h.toOrdered (h.parent_persistentLeader a)
     (h.parent_persistentLeader b) c d
 
 /-- After `persistentMerge a b`, the two are connected. -/
@@ -546,6 +669,34 @@ theorem persistentSame_of_persistentSame {self : UnionFind n} (h : self.Valid) {
     (a b : Fin n) (hcd : self.persistentSame c d) :
     (self.persistentMerge a b).persistentSame c d :=
   (persistentMerge_persistentSame h a b c d).mpr (Or.inl hcd)
+
+/-- Merging two components that were apart adds their sizes. -/
+theorem persistentSize_persistentMerge {self : UnionFind n} (h : self.Valid) {a b : Fin n}
+    (hab : ¬ self.persistentSame a b) :
+    (self.persistentMerge a b).persistentSize a =
+      self.persistentSize a + self.persistentSize b := by
+  have hdisj : Disjoint (Finset.univ.filter fun v => self.persistentSame v a)
+      (Finset.univ.filter fun v => self.persistentSame v b) := by
+    rw [Finset.disjoint_left]
+    intro v hva hvb
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hva hvb
+    exact hab (persistentSame_trans ((persistentSame_comm self v a) ▸ hva) hvb)
+  have hset : (Finset.univ.filter fun v => (self.persistentMerge a b).persistentSame v a) =
+      (Finset.univ.filter fun v => self.persistentSame v a) ∪
+        Finset.univ.filter fun v => self.persistentSame v b := by
+    ext v
+    simp only [Finset.mem_filter, Finset.mem_union, Finset.mem_univ, true_and,
+      persistentMerge_persistentSame h a b v a]
+    constructor
+    · rintro (hv | ⟨_, hab'⟩ | ⟨hv, _⟩)
+      · exact Or.inl hv
+      · exact absurd hab' hab
+      · exact Or.inr hv
+    · rintro (hv | hv)
+      · exact Or.inl hv
+      · exact Or.inr (Or.inr ⟨hv, persistentSame_self self a⟩)
+  rw [persistentSize_eq_card (persistentMerge_Valid h a b) a, hset,
+    Finset.card_union_of_disjoint hdisj, persistentSize_eq_card h a, persistentSize_eq_card h b]
 
 /-! ## The compressing family
 
@@ -599,6 +750,11 @@ theorem size_fst {self : UnionFind n} (h : self.Valid) (a : Fin n) :
   rw [leader_fst h a, leader_componentSize]
   rfl
 
+/-- `size` answers that same count, and hands back the compressed state. -/
+theorem size_fst_eq_card {self : UnionFind n} (h : self.Valid) (a : Fin n) :
+    (self.size a).1 = (Finset.univ.filter fun v => self.persistentSame v a).card := by
+  rw [size_fst h, persistentSize_eq_card h]
+
 theorem size_Valid {self : UnionFind n} (h : self.Valid) (a : Fin n) :
     (self.size a).2.Valid :=
   leader_Valid h a
@@ -642,7 +798,7 @@ theorem merge_persistentSame {self : UnionFind n} (h : self.Valid) (a b c d : Fi
   have hyb : ((self.leader a).2.leader b).1 = self.persistentLeader b := by
     rw [leader_fst (leader_Valid h a) b, leader_persistentLeader h a b]
   simp only [persistentSame_iff, merge_eq]
-  rw [Impl.link_persistentLeader_eq h2
+  rw [Impl.link_persistentLeader_eq h2.toOrdered
     (by rw [hxa, ← hs2 a]; exact h2.parent_persistentLeader a)
     (by rw [hyb, ← hs2 b]; exact h2.parent_persistentLeader b) c d, hxa, hyb]
   simp only [hs2]
@@ -718,6 +874,12 @@ example :
     let uf := (empty 5).persistentMerge 0 1 |>.persistentMerge 3 4 |>.persistentMerge 1 4
     uf.persistentSame 0 3 && !uf.persistentSame 0 2 && uf.persistentSize 4 == 4 := by
   native_decide
+
+/-- The size a state records is the number of vertices connected, counted. -/
+example :
+    let uf := (empty 5).persistentMerge 0 1 |>.persistentMerge 3 4 |>.persistentMerge 1 4
+    uf.persistentSize 4 = (Finset.univ.filter fun v => uf.persistentSame v 4).card := by
+  decide
 
 /-- In range, the `!` variants agree with the `Fin`-indexed originals. -/
 example :
