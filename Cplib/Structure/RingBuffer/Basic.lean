@@ -17,9 +17,9 @@ Unlike `Cplib.Deque`, this **pops at both ends and indexes**. It is also
 ephemeral in the way an array is: an operation on a buffer that is no longer
 referenced elsewhere updates `data` in place, while holding on to an older state
 forces a copy. `Cplib.Deque` is the one to reach for when a persistent structure
-is wanted, or when only 0-1 BFS-style pushes and front pops are — a push here
-costs roughly twice what one on `Cplib.Deque` does, measured over ten million
-operations, since finding a slot divides.
+is wanted, or when only 0-1 BFS-style pushes and front pops are: measured over
+ten million operations, a push and pop here costs about half as much again as
+on `Cplib.Deque`, and a run that keeps growing the buffer costs more still.
 
 Slots outside the live range hold whatever was last written there, or a copy of
 an element supplied at the growth that created them. They are never read: every
@@ -61,14 +61,23 @@ variable {α : Type u}
 /-- Whether the buffer holds no elements. `O(1)`. -/
 @[inline] def isEmpty (b : RingBuffer α) : Bool := b.sz == 0
 
-/-- Slot holding element `i`. -/
-@[inline] def slot (b : RingBuffer α) (i : Nat) : Nat := (b.head + i) % b.cap
-
-theorem slot_lt (b : RingBuffer α) {i : Nat} (h : 0 < b.cap) : b.slot i < b.cap :=
-  Nat.mod_lt _ h
-
 theorem cap_pos (b : RingBuffer α) {i : Nat} (h : i < b.sz) : 0 < b.cap :=
   Nat.lt_of_le_of_lt (Nat.zero_le i) (Nat.lt_of_lt_of_le h b.sz_le)
+
+/-- Slot holding element `i`.
+
+The positivity of the capacity is taken as an argument rather than checked:
+every caller has it to hand, and only a non-empty buffer has a slot to speak
+of. -/
+@[inline] def slot (b : RingBuffer α) (_h : 0 < b.cap) (i : Nat) : Nat :=
+  (b.head + i) % b.cap
+
+@[simp] theorem slot_eq_mod (b : RingBuffer α) (h : 0 < b.cap) (i : Nat) :
+    b.slot h i = (b.head + i) % b.cap := rfl
+
+theorem slot_lt (b : RingBuffer α) (h : 0 < b.cap) (i : Nat) : b.slot h i < b.cap := by
+  rw [b.slot_eq_mod h]
+  exact Nat.mod_lt _ h
 
 /-- The empty buffer, holding no slots at all. `O(1)`. -/
 def empty : RingBuffer α := ⟨0, #v[], 0, 0, Nat.le_refl 0⟩
@@ -78,7 +87,7 @@ instance : Inhabited (RingBuffer α) := ⟨empty⟩
 
 /-- Element `i`, counted from the front. `O(1)`. -/
 @[inline] def get (b : RingBuffer α) (i : Fin b.sz) : α :=
-  b.data[b.slot i.val]'(b.slot_lt (b.cap_pos i.isLt))
+  b.data[b.slot (b.cap_pos i.isLt) i.val]'(b.slot_lt _ _)
 
 /-- `get` for an index that may be out of range. `O(1)`. -/
 @[inline] def get? (b : RingBuffer α) (i : Nat) : Option α :=
@@ -91,7 +100,7 @@ returns `default`; see `Cplib.unwrap!`. `O(1)`. -/
 
 /-- Replace element `i`, counted from the front. `O(1)`. -/
 @[inline] def set (b : RingBuffer α) (i : Fin b.sz) (x : α) : RingBuffer α :=
-  { b with data := b.data.set (b.slot i.val) x (b.slot_lt (b.cap_pos i.isLt)) }
+  { b with data := b.data.set (b.slot (b.cap_pos i.isLt) i.val) x (b.slot_lt _ _) }
 
 /-- `set` for an index that may be out of range. `O(1)`. -/
 @[inline] def set? (b : RingBuffer α) (i : Nat) (x : α) : Option (RingBuffer α) :=
@@ -107,16 +116,22 @@ namespace Impl
 
 /-- Move the elements into a buffer of twice the capacity, starting at slot `0`.
 
-`pad` fills the slots that hold nothing; it is never read back, and taking it
-from the caller is what keeps `RingBuffer` free of an `Inhabited` constraint. -/
+`pad` fills the new slots; it is never read back, and taking it from the caller
+is what keeps `RingBuffer` free of an `Inhabited` constraint.
+
+Filling with `pad` and then writing the live elements over it costs a bulk fill
+plus `sz` writes, against a closure call per slot for building the whole thing
+with `Vector.ofFn`. -/
 def grow (b : RingBuffer α) (pad : α) : RingBuffer α :=
   let ncap := if b.cap = 0 then 1 else b.cap * 2
   have hsz : b.sz ≤ ncap := by
     have := b.sz_le
     dsimp only [ncap]
     split <;> omega
-  ⟨ncap, Vector.ofFn (fun i : Fin ncap =>
-    if h : i.val < b.sz then b.data[b.slot i.val]'(b.slot_lt (b.cap_pos h)) else pad),
+  ⟨ncap,
+   Fin.foldl b.sz
+     (fun v i => v.set i.val (b.get i) (Nat.lt_of_lt_of_le i.isLt hsz))
+     (Vector.replicate ncap pad),
    0, b.sz, hsz⟩
 
 @[simp] theorem grow_sz (b : RingBuffer α) (pad : α) : (grow b pad).sz = b.sz := rfl
@@ -132,14 +147,14 @@ theorem grow_sz_lt_cap (b : RingBuffer α) (pad : α) (h : ¬ b.sz < b.cap) :
 
 /-- Write `x` into the slot just past the last element. Needs a free slot. -/
 @[inline] def pushBackIn (b : RingBuffer α) (h : b.sz < b.cap) (x : α) : RingBuffer α :=
-  ⟨b.cap, b.data.set (b.slot b.sz) x (b.slot_lt (Nat.lt_of_le_of_lt (Nat.zero_le _) h)),
-   b.head, b.sz + 1, h⟩
+  have hcap : 0 < b.cap := Nat.lt_of_le_of_lt (Nat.zero_le _) h
+  ⟨b.cap, b.data.set (b.slot hcap b.sz) x (b.slot_lt _ _), b.head, b.sz + 1, h⟩
 
 /-- Write `x` into the slot just before the front element. Needs a free slot. -/
 @[inline] def pushFrontIn (b : RingBuffer α) (h : b.sz < b.cap) (x : α) : RingBuffer α :=
   have hcap : 0 < b.cap := Nat.lt_of_le_of_lt (Nat.zero_le _) h
-  let nhead := (b.head + b.cap - 1) % b.cap
-  ⟨b.cap, b.data.set nhead x (Nat.mod_lt _ hcap), nhead, b.sz + 1, h⟩
+  let nhead := b.slot hcap (b.cap - 1)
+  ⟨b.cap, b.data.set nhead x (b.slot_lt _ _), nhead, b.sz + 1, h⟩
 
 end Impl
 
@@ -163,7 +178,8 @@ def pushFront (b : RingBuffer α) (x : α) : RingBuffer α :=
 def popFront? (b : RingBuffer α) : Option (α × RingBuffer α) :=
   if h : 0 < b.sz then
     some (b.get ⟨0, h⟩,
-      ⟨b.cap, b.data, b.slot 1, b.sz - 1, Nat.le_trans (Nat.sub_le _ _) b.sz_le⟩)
+      ⟨b.cap, b.data, b.slot (b.cap_pos h) 1, b.sz - 1,
+        Nat.le_trans (Nat.sub_le _ _) b.sz_le⟩)
   else none
 
 /-- Remove the back element, returning it and the rest. `O(1)`. -/

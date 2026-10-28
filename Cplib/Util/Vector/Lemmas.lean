@@ -1,4 +1,5 @@
 import Lean.Elab.Tactic.Omega
+import Mathlib.Data.List.FinRange
 
 namespace Vector
 
@@ -88,5 +89,18 @@ theorem getElem_foldl_set_of_mem {N : Nat} {I : Type}
     · apply ih (data := data.set (idx y) (value y) (hidx y)) hx hnodup.2
       intro z hz hzx
       exact hinj z (by simp [hz]) hzx
+
+/-- An index loop of `Vector.set` over every `Fin n`, as `Fin.foldl` runs one,
+leaves each index holding the value it was given.
+
+Implementations use `Fin.foldl` because it allocates nothing; the proof goes
+through `List.finRange` and `getElem_foldl_set_of_mem`. -/
+theorem getElem_foldl_set_fin {N n : Nat} (hidx : ∀ i : Fin n, i.val < N)
+    (value : Fin n → α) (data : Vector α N) (j : Fin n) :
+    (Fin.foldl n (fun v i => v.set i.val (value i) (hidx i)) data).get ⟨j.val, hidx j⟩
+      = value j := by
+  rw [Fin.foldl_eq_finRange_foldl]
+  exact getElem_foldl_set_of_mem (List.finRange n) Fin.val hidx value data j
+    (List.mem_finRange j) (List.nodup_finRange n) (fun y _ hy => Fin.ext hy)
 
 end Vector

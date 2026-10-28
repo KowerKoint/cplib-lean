@@ -21,8 +21,8 @@ weight 0 goes to the front, one of weight 1 to the back, and the search always
 takes from the front — and it is what makes the two-list representation simple:
 adding `popBack?` here would reverse `front` into `back`, and alternating the
 two pops would then pay `O(n)` every time rather than amortising. For a deque
-that pops at both ends, and that indexes, use `Cplib.RingBuffer` — at the cost
-of roughly twice the time per push, measured over ten million operations.
+that pops at both ends, and that indexes, use `Cplib.RingBuffer`, at the cost of
+about half as much again per operation.
 
 Costs, for a deque of `n` elements: `empty`, `isEmpty`, `pushFront` and
 `pushBack` are `O(1)`, `popFront?` is `O(1)` amortised and `O(n)` in the worst

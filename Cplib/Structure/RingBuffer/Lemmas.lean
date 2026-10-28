@@ -1,4 +1,5 @@
 import Cplib.Structure.RingBuffer.Basic
+import Cplib.Util.Vector.Lemmas
 import Mathlib.Tactic
 
 namespace Cplib
@@ -24,9 +25,10 @@ variable {α : Type u} {b : RingBuffer α} {x : α}
 
 /-! ### Slot arithmetic -/
 
-/-- Indices below the capacity occupy distinct slots. -/
+/-- Indices below the capacity occupy distinct slots. Stated on the reduced
+form `slot_eq_mod` rewrites to, which is where every use of it arises. -/
 theorem slot_inj (b : RingBuffer α) {i j : Nat} (hi : i < b.cap) (hj : j < b.cap)
-    (h : b.slot i = b.slot j) : i = j := by
+    (h : (b.head + i) % b.cap = (b.head + j) % b.cap) : i = j := by
   have hmod : i % b.cap = j % b.cap := Nat.ModEq.add_left_cancel' b.head h
   rwa [Nat.mod_eq_of_lt hi, Nat.mod_eq_of_lt hj] at hmod
 
@@ -63,7 +65,7 @@ theorem ext_toList {b₁ b₂ : RingBuffer α} (hsz : b₁.sz = b₂.sz)
   apply List.ext_getElem (by simp [ofArray])
   intro i h₁ h₂
   have hi : i < xs.size := by simpa using h₂
-  simp [ofArray, get, slot, Nat.mod_eq_of_lt hi]
+  simp [ofArray, get, slot_eq_mod, Nat.mod_eq_of_lt hi]
 
 @[simp] theorem get?_eq_getElem? (b : RingBuffer α) (i : Nat) :
     b.get? i = b.toList[i]? := by
@@ -88,9 +90,9 @@ sequence alone. -/
     have := b.sz_le
     split <;> omega
   have hmod : i % (if b.cap = 0 then 1 else b.cap * 2) = i := Nat.mod_eq_of_lt hlt
-  simp only [get, Impl.grow, slot, Nat.zero_add, Vector.getElem_ofFn]
-  rw [dif_pos (show i % (if b.cap = 0 then 1 else b.cap * 2) < b.sz by rw [hmod]; exact h₂)]
-  exact getElem_congr_idx (by rw [hmod])
+  simp only [get, Impl.grow, slot_eq_mod, Nat.zero_add]
+  rw [getElem_congr_idx hmod]
+  exact Vector.getElem_foldl_set_fin _ _ _ ⟨i, h₂⟩
 
 /-! ### Pushing -/
 
@@ -104,50 +106,49 @@ theorem Impl.toList_pushBackIn (b : RingBuffer α) (h : b.sz < b.cap) (x : α) :
   · have hne : (b.head + b.sz) % b.cap ≠ (b.head + i) % b.cap := fun he =>
       absurd (b.slot_inj h (Nat.lt_trans hlt h) he) (Nat.ne_of_gt hlt)
     rw [List.getElem_append_left (by simpa using hlt)]
-    simp only [get, Impl.pushBackIn, slot, getElem_toList]
+    simp only [get, Impl.pushBackIn, slot_eq_mod, getElem_toList]
     rw [Vector.getElem_set_ne _ _ hne]
   · have hieq : i = b.sz := by omega
     subst hieq
     rw [List.getElem_append_right (by simp)]
-    simp only [get, Impl.pushBackIn, slot, length_toList, Nat.sub_self]
+    simp only [get, Impl.pushBackIn, slot_eq_mod, length_toList, Nat.sub_self]
     rw [Vector.getElem_set_self]
     simp
 
 theorem Impl.toList_pushFrontIn (b : RingBuffer α) (h : b.sz < b.cap) (x : α) :
     (Impl.pushFrontIn b h x).toList = x :: b.toList := by
   have hcap : 0 < b.cap := Nat.lt_of_le_of_lt (Nat.zero_le _) h
-  have hcapm1 : (b.head + b.cap - 1) % b.cap = (b.head + (b.cap - 1)) % b.cap := by
-    congr 1
-    omega
   apply List.ext_getElem (by simp [Impl.pushFrontIn])
   intro i h₁ h₂
   have hi : i < b.sz + 1 := by simpa [Impl.pushFrontIn] using h₁
   rw [getElem_toList]
   cases i with
   | zero =>
-      have hz : ((b.head + b.cap - 1) % b.cap + 0) % b.cap = (b.head + b.cap - 1) % b.cap := by
+      have hz : ((b.head + (b.cap - 1)) % b.cap + 0) % b.cap
+          = (b.head + (b.cap - 1)) % b.cap := by
         rw [Nat.add_zero]
         exact Nat.mod_mod_of_dvd _ (dvd_refl _)
-      simp only [get, Impl.pushFrontIn, slot, List.getElem_cons_zero]
+      simp only [get, Impl.pushFrontIn, slot_eq_mod, List.getElem_cons_zero]
       rw [Vector.getElem_set, if_pos hz.symm]
   | succ j =>
       have hj : j < b.sz := by omega
       -- Shifting the start back by one and the index forward by one cancel.
-      have hslot : ((b.head + b.cap - 1) % b.cap + (j + 1)) % b.cap = (b.head + j) % b.cap := by
-        rw [Nat.mod_add_mod, show b.head + b.cap - 1 + (j + 1) = b.head + j + b.cap by omega,
+      have hslot : ((b.head + (b.cap - 1)) % b.cap + (j + 1)) % b.cap
+          = (b.head + j) % b.cap := by
+        rw [Nat.mod_add_mod,
+          show b.head + (b.cap - 1) + (j + 1) = b.head + j + b.cap by omega,
           Nat.add_mod_right]
-      have hne : (b.head + b.cap - 1) % b.cap ≠ (b.head + j) % b.cap := by
-        rw [hcapm1]
+      have hne : (b.head + (b.cap - 1)) % b.cap ≠ (b.head + j) % b.cap := by
         intro he
         have hcm : b.cap - 1 = j :=
           b.slot_inj (i := b.cap - 1) (j := j)
             (Nat.sub_lt hcap Nat.one_pos) (Nat.lt_trans hj h) he
         omega
-      have hST : (b.head + b.cap - 1) % b.cap
-          ≠ ((b.head + b.cap - 1) % b.cap + (j + 1)) % b.cap := by
+      have hST : (b.head + (b.cap - 1)) % b.cap
+          ≠ ((b.head + (b.cap - 1)) % b.cap + (j + 1)) % b.cap := by
         rw [hslot]
         exact hne
-      simp only [get, Impl.pushFrontIn, slot, List.getElem_cons_succ, getElem_toList]
+      simp only [get, Impl.pushFrontIn, slot_eq_mod, List.getElem_cons_succ, getElem_toList]
       rw [Vector.getElem_set, if_neg hST]
       exact getElem_congr_idx hslot
 
@@ -165,6 +166,7 @@ theorem Impl.toList_pushFrontIn (b : RingBuffer α) (h : b.sz < b.cap) (x : α) 
   · exact Impl.toList_pushFrontIn _ _ _
   · rw [Impl.toList_pushFrontIn, Impl.toList_grow]
 
+
 /-! ### Updating -/
 
 @[simp] theorem toList_set (b : RingBuffer α) (i : Fin b.sz) (x : α) :
@@ -175,13 +177,13 @@ theorem Impl.toList_pushFrontIn (b : RingBuffer α) (h : b.sz < b.cap) (x : α) 
   rw [getElem_toList, List.getElem_set]
   by_cases hij : i.val = j
   · subst hij
-    simp only [get, RingBuffer.set, slot]
+    simp only [get, RingBuffer.set, slot_eq_mod]
     rw [Vector.getElem_set_self]
     simp
   · have hne : (b.head + i.val) % b.cap ≠ (b.head + j) % b.cap := fun he =>
       hij (b.slot_inj (Nat.lt_of_lt_of_le i.isLt b.sz_le)
         (Nat.lt_of_lt_of_le hj b.sz_le) he)
-    simp only [if_neg hij, get, RingBuffer.set, slot, getElem_toList]
+    simp only [if_neg hij, get, RingBuffer.set, slot_eq_mod, getElem_toList]
     rw [Vector.getElem_set_ne _ _ hne]
 
 /-! ### Popping -/
@@ -209,7 +211,7 @@ theorem toList_of_popFront? {b b' : RingBuffer α} {x : α}
     | succ j =>
         have hj : j + 1 < b.sz := by simpa using h₁
         rw [getElem_toList, List.getElem_cons_succ, getElem_toList]
-        simp only [get, slot]
+        simp only [get, slot_eq_mod]
         exact getElem_congr_idx (by rw [Nat.mod_add_mod]; congr 1; omega)
   · simp at h
 
@@ -227,11 +229,11 @@ theorem toList_of_popBack? {b b' : RingBuffer α} {x : α}
     rw [getElem_toList]
     rcases Nat.lt_or_ge i (b.sz - 1) with hlt | hge
     · rw [List.getElem_append_left (by simpa using hlt)]
-      simp [get, slot]
+      simp [get, slot_eq_mod]
     · have hieq : i = b.sz - 1 := by omega
       subst hieq
       rw [List.getElem_append_right (by simp)]
-      simp [get, slot]
+      simp [get, slot_eq_mod]
   · simp at h
 
 @[simp] theorem isSome_popFront? : b.popFront?.isSome ↔ b.toList ≠ [] := by
