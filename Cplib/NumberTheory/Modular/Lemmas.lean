@@ -9,7 +9,7 @@ namespace NumberTheory
 
 /-- Binary exponentiation computes the power, as long as the fuel outlasts the
 exponent. -/
-theorem Impl.powModFuel_eq {m : Nat} (hm : 0 < m) (fuel : Nat) :
+theorem Impl.powModFuel_eq {m : Nat} (_hm : 0 < m) (fuel : Nat) :
     ∀ b e : Nat, e < fuel → Impl.powModFuel m fuel b e = b ^ e % m := by
   induction fuel with
   | zero => omega
