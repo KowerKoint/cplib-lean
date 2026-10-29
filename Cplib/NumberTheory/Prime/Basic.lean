@@ -1,5 +1,6 @@
 import Cplib.NumberTheory.Modular.Basic
 import Cplib.NumberTheory.Root.Basic
+import Cplib.Util.List.Basic
 
 namespace Cplib
 
@@ -150,14 +151,6 @@ def factorsAux (n : Nat) : Nat → List Nat
             | some d => factorsAux d fuel ++ factorsAux (n / d) fuel
             | none => [n]
 
-/-- Collect a sorted list of factors into `(factor, multiplicity)` pairs. -/
-def runLength : List Nat → List (Nat × Nat)
-  | [] => []
-  | p :: rest =>
-      match runLength rest with
-      | (q, e) :: tail => if p == q then (q, e + 1) :: tail else (p, 1) :: (q, e) :: tail
-      | [] => [(p, 1)]
-
 end Impl
 
 /-- The prime factors of `n` with multiplicity, in increasing order. `1` has no
@@ -170,7 +163,7 @@ def primeFactors (n : Nat) : Array Nat :=
 /-- The prime factorisation of `n` as `(prime, exponent)` pairs, in increasing
 order of prime. -/
 def factorize (n : Nat) : Array (Nat × Nat) :=
-  (Impl.runLength ((Impl.factorsAux n (n + 1)).mergeSort (· ≤ ·))).toArray
+  (((Impl.factorsAux n (n + 1)).mergeSort (· ≤ ·)).runLength).toArray
 
 namespace Impl
 

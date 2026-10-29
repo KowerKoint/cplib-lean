@@ -1,5 +1,6 @@
 import Cplib.NumberTheory.Prime.Basic
 import Cplib.NumberTheory.Modular.Lemmas
+import Cplib.Util.List.Lemmas
 import Mathlib.Tactic
 import Mathlib.Data.ZMod.Basic
 import Mathlib.FieldTheory.Finite.Basic
@@ -235,33 +236,6 @@ theorem factorsAux_prod : ∀ (fuel n : Nat), 0 < n → (factorsAux n fuel).prod
                 Nat.mul_div_cancel' hdvd]
             · simp
 
-theorem runLength_prod : ∀ l : List Nat,
-    ((runLength l).map fun pe => pe.1 ^ pe.2).prod = l.prod := by
-  intro l
-  induction l with
-  | nil => rfl
-  | cons p rest ih =>
-      rw [runLength]
-      split
-      · rename_i q e tail hsplit
-        rw [hsplit] at ih
-        simp only [List.map_cons, List.prod_cons] at ih
-        split
-        · rename_i hpq
-          simp only [beq_iff_eq] at hpq
-          subst hpq
-          simp only [List.map_cons, List.prod_cons, Nat.pow_succ, List.prod_cons]
-          rw [← ih]
-          ring
-        · simp only [List.map_cons, List.prod_cons]
-          rw [← ih]
-          ring
-      · rename_i hsplit
-        rw [hsplit] at ih
-        simp only [List.map_nil, List.prod_nil] at ih
-        simp only [List.map_cons, List.prod_cons, List.map_nil, List.prod_nil, ← ih]
-        ring
-
 end Impl
 
 /-- The factors multiply back to `n`. -/
@@ -274,7 +248,7 @@ theorem primeFactors_prod {n : Nat} (hn : 0 < n) : (primeFactors n).toList.prod 
 theorem factorize_prod {n : Nat} (hn : 0 < n) :
     ((factorize n).toList.map fun pe => pe.1 ^ pe.2).prod = n := by
   rw [factorize]
-  rw [Impl.runLength_prod, (List.mergeSort_perm _ _).prod_eq]
+  rw [List.runLength_prod, (List.mergeSort_perm _ _).prod_eq]
   exact Impl.factorsAux_prod _ n hn
 
 /-- The factors come out in increasing order. -/
