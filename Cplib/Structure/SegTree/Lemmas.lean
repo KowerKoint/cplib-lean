@@ -5,18 +5,43 @@ import Mathlib.Tactic
 
 namespace Cplib
 
-namespace SegTree
+/-!
+# Structure.SegTree.Lemmas
 
-private def buildData [Mul M] {cap : Nat} (xs : List (Fin cap))
+Specification of the segment tree in `Structure.SegTree.Basic`.
+
+`Valid` is the representation invariant: every internal node holds the product
+of its two children, and the padding beyond `sz` holds `e`. `ofArray_Valid` and
+`set_Valid` say that every state this API produces has it.
+
+`prod_eq_range_prod` is what a range query means: under that invariant, and
+with `op` associative with identity `e` — `Std.Associative` and
+`Std.LawfulIdentity`, which the usual choices on `Nat` already carry — `prod l r`
+is `op` folded over the elements of `[l, r)`.
+-/
+
+namespace SegTree
+variable {M : Type} {op : M → M → M} {e : M}
+
+/-- `op` folded over a list, which is what a range of the tree stands for. -/
+private abbrev foldOp (op : M → M → M) (e : M) (l : List M) : M := l.foldr op e
+
+private theorem foldOp_append [Std.Associative op] [Std.LawfulIdentity op e]
+    (l₁ l₂ : List M) : foldOp op e (l₁ ++ l₂) = op (foldOp op e l₁) (foldOp op e l₂) := by
+  induction l₁ with
+  | nil => simp [foldOp, Std.LawfulLeftIdentity.left_id]
+  | cons x l ih => simp [foldOp, ih, Std.Associative.assoc]
+
+private def buildData (op : M → M → M) {cap : Nat} (xs : List (Fin cap))
     (data : Vector M (cap * 2)) : Vector M (cap * 2) :=
   xs.foldr (fun (i : Fin cap) dat =>
-    dat.set i (dat[i.val * 2] * dat[i.val * 2 + 1])) data
+    dat.set i (op dat[i.val * 2] dat[i.val * 2 + 1])) data
 
-private theorem buildData_valid [Mul M] {cap : Nat} (xs : List (Fin cap))
+private theorem buildData_valid {cap : Nat} (xs : List (Fin cap))
     (hxs : xs.Pairwise (· < ·)) (data : Vector M (cap * 2))
     (i : Fin cap) (hi : i ∈ xs) (hi0 : i.val ≠ 0) :
-    (buildData xs data)[i.val] =
-      (buildData xs data)[i.val * 2] * (buildData xs data)[i.val * 2 + 1] := by
+    (buildData op xs data)[i.val] =
+      op (buildData op xs data)[i.val * 2] (buildData op xs data)[i.val * 2 + 1] := by
   induction xs with
   | nil => simp at hi
   | cons x xs ih =>
@@ -33,9 +58,9 @@ private theorem buildData_valid [Mul M] {cap : Nat} (xs : List (Fin cap))
       · exact ih hxs.2 hi
       all_goals omega
 
-private theorem buildData_get_of_cap_le [Mul M] {cap : Nat} (xs : List (Fin cap))
+private theorem buildData_get_of_cap_le {cap : Nat} (xs : List (Fin cap))
     (data : Vector M (cap * 2)) (j : Nat) (hj : j < cap * 2) (hcap : cap ≤ j) :
-    (buildData xs data)[j] = data[j] := by
+    (buildData op xs data)[j] = data[j] := by
   induction xs with
   | nil => rfl
   | cons x xs ih =>
@@ -44,27 +69,27 @@ private theorem buildData_get_of_cap_le [Mul M] {cap : Nat} (xs : List (Fin cap)
     · exact ih
     · omega
 
-@[simp] theorem ofArray_sz [Mul M] [One M] (a : Array M) :
-    (ofArray a).sz = a.size := rfl
+@[simp] theorem ofArray_sz (op : M → M → M) (e : M) (a : Array M) :
+    (ofArray op e a).sz = a.size := rfl
 
-@[simp] theorem ofArray_cap [Mul M] [One M] (a : Array M) :
-    (ofArray a).cap = a.size.nextPowerOfTwo := rfl
+@[simp] theorem ofArray_cap (op : M → M → M) (e : M) (a : Array M) :
+    (ofArray op e a).cap = a.size.nextPowerOfTwo := rfl
 
-@[simp] theorem ofArray_get [Mul M] [One M] (a : Array M) (i : Fin a.size) :
-    get (ofArray a) i = a[i] := by
+@[simp] theorem ofArray_get (op : M → M → M) (e : M) (a : Array M) (i : Fin a.size) :
+    get (ofArray op e a) i = a[i] := by
   simp [get, ofArray, Fin.foldl_eq_finRange_foldl, Fin.foldr_eq_finRange_foldr]
   have hi := i.isLt
   have hs := Nat.le_nextPowerOfTwo a.size
   have hc : 0 < a.size.nextPowerOfTwo :=
     Nat.pos_of_isPowerOfTwo (Nat.isPowerOfTwo_nextPowerOfTwo a.size)
   let base : Vector M (a.size.nextPowerOfTwo * 2) :=
-    Vector.replicate (a.size.nextPowerOfTwo * 2) 1
+    Vector.replicate (a.size.nextPowerOfTwo * 2) e
   let leaves : Vector M (a.size.nextPowerOfTwo * 2) :=
     (List.finRange a.size).foldl
       (fun dat j => dat.set (a.size.nextPowerOfTwo + j.val) a[j.val] (by
         have hj := j.isLt
         omega)) base
-  change (buildData (List.finRange a.size.nextPowerOfTwo) leaves).get
+  change (buildData op (List.finRange a.size.nextPowerOfTwo) leaves).get
     ⟨a.size.nextPowerOfTwo + i.val, by
       omega⟩ = a[i]
   calc
@@ -86,11 +111,11 @@ private theorem buildData_get_of_cap_le [Mul M] {cap : Nat} (xs : List (Fin cap)
       apply Fin.ext
       omega
 
-private theorem Impl.modifyUpData_get_of_cap_le [Mul M] {cap : Nat}
+private theorem Impl.modifyUpData_get_of_cap_le {cap : Nat}
     (data : Vector M (cap * 2)) (i : Fin cap) (j : Nat)
     (hj : j < cap * 2) (hcap : cap ≤ j) :
-    (Impl.modifyUpData data i).get ⟨j, hj⟩ = data.get ⟨j, hj⟩ := by
-  induction data, i using Impl.modifyUpData.induct with
+    (Impl.modifyUpData op data i).get ⟨j, hj⟩ = data.get ⟨j, hj⟩ := by
+  induction data, i using Impl.modifyUpData.induct (op := op) with
   | case1 data i hroot =>
     rw [Impl.modifyUpData.eq_def]
     simp only [if_pos hroot]
@@ -105,13 +130,13 @@ private theorem Impl.modifyUpData_get_of_cap_le [Mul M] {cap : Nat}
     rw [Vector.getElem_set_ne]
     omega
 
-@[simp] theorem Impl.modifyUp_sz [Mul M] (self : SegTree M) (i : Fin self.cap) :
+@[simp] theorem Impl.modifyUp_sz (self : SegTree M op e) (i : Fin self.cap) :
     (Impl.modifyUp self i).sz = self.sz := rfl
 
-@[simp] theorem Impl.modifyUp_cap [Mul M] (self : SegTree M) (i : Fin self.cap) :
+@[simp] theorem Impl.modifyUp_cap (self : SegTree M op e) (i : Fin self.cap) :
     (Impl.modifyUp self i).cap = self.cap := rfl
 
-private theorem Impl.modifyUp_get_of_cap_le [Mul M] (self : SegTree M)
+private theorem Impl.modifyUp_get_of_cap_le (self : SegTree M op e)
     (i : Fin self.cap) (j : Nat) (hj : j < self.cap * 2) (hcap : self.cap ≤ j) :
     (Impl.modifyUp self i).data[j] = self.data[j] := by
   exact Impl.modifyUpData_get_of_cap_le self.data i j hj hcap
@@ -119,14 +144,14 @@ private theorem Impl.modifyUp_get_of_cap_le [Mul M] (self : SegTree M)
 /-- `Impl.setData` at the leaf `set` writes to, in the shape the proofs below
 want: `set` itself has to spell the index out so that the structure is gone by
 the time the vector is written. -/
-private abbrev Impl.setDataAt [Mul M] [One M] (self : SegTree M) (i : Fin self.sz) (x : M) :
+private abbrev Impl.setDataAt (self : SegTree M op e) (i : Fin self.sz) (x : M) :
     Vector M (self.cap * 2) :=
-  Impl.setData self.data (self.cap + i.val) (by
+  Impl.setData op self.data (self.cap + i.val) (by
     have hi := i.isLt
     have hs := self.sz_le
     omega) x
 
-private theorem Impl.setData_get_self [Mul M] [One M] (self : SegTree M)
+private theorem Impl.setData_get_self (self : SegTree M op e)
     (i : Fin self.sz) (x : M) :
     (Impl.setDataAt self i x).get ⟨self.cap + i.val, by
       have hi := i.isLt
@@ -144,7 +169,7 @@ private theorem Impl.setData_get_self [Mul M] [One M] (self : SegTree M)
     change (self.data.set (self.cap + i.val) x _)[self.cap + i.val] = x
     rw [Vector.getElem_set_self]
 
-private theorem Impl.setData_get_of_ne [Mul M] [One M] (self : SegTree M)
+private theorem Impl.setData_get_of_ne (self : SegTree M op e)
     (i j : Fin self.sz) (x : M) (hij : j ≠ i) :
     (Impl.setDataAt self i x).get ⟨self.cap + j.val, by
       have hj := j.isLt
@@ -170,29 +195,29 @@ private theorem Impl.setData_get_of_ne [Mul M] [One M] (self : SegTree M)
     rw [Vector.getElem_set_ne]
     omega
 
-private def internalValidExcept [Mul M] {cap : Nat} (data : Vector M (cap * 2))
+private def internalValidExcept (op : M → M → M) {cap : Nat} (data : Vector M (cap * 2))
     (bad : Fin cap) : Prop :=
   ∀ i : Fin cap, i.val ≠ 0 → i ≠ bad →
-    data[i.val] = data[i.val * 2] * data[i.val * 2 + 1]
+    data[i.val] = op data[i.val * 2] data[i.val * 2 + 1]
 
-private def internalValid [Mul M] {cap : Nat} (data : Vector M (cap * 2)) : Prop :=
+private def internalValid (op : M → M → M) {cap : Nat} (data : Vector M (cap * 2)) : Prop :=
   ∀ i : Fin cap, i.val ≠ 0 →
-    data[i.val] = data[i.val * 2] * data[i.val * 2 + 1]
+    data[i.val] = op data[i.val * 2] data[i.val * 2 + 1]
 
 /-- Fold the perfect binary subtree of height `height` rooted at `i`, in leaf order. -/
-private def nodeFold [Mul M] [One M] {cap : Nat} (data : Vector M (cap * 2))
+private def nodeFold (op : M → M → M) (e : M) {cap : Nat} (data : Vector M (cap * 2))
     (i : Nat) : Nat → M
-  | 0 => data.getD i 1
+  | 0 => data.getD i e
   | height + 1 =>
-      nodeFold data (i * 2) height * nodeFold data (i * 2 + 1) height
+      op (nodeFold op e data (i * 2) height) (nodeFold op e data (i * 2 + 1) height)
 
 /-- From the local `internalValid` property, recover what the root of any perfect
 binary subtree stands for. -/
-private theorem nodeFold_eq_get [Mul M] [One M] {cap : Nat}
-    (data : Vector M (cap * 2)) (hvalid : internalValid data)
+private theorem nodeFold_eq_get {cap : Nat}
+    (data : Vector M (cap * 2)) (hvalid : internalValid op data)
     (height i : Nat) (hi0 : i ≠ 0)
     (hibound : (i + 1) * 2 ^ height ≤ cap * 2) :
-    nodeFold data i height = data.getD i 1 := by
+    nodeFold op e data i height = data.getD i e := by
   induction height generalizing i with
   | zero => rfl
   | succ height ih =>
@@ -215,16 +240,16 @@ private theorem nodeFold_eq_get [Mul M] [One M] {cap : Nat}
       show i * 2 < cap * 2 by omega,
       show i * 2 + 1 < cap * 2 by omega] using hv.symm
 
-private theorem nodeFold_eq_range_prod [Monoid M] {cap : Nat}
-    (data : Vector M (cap * 2)) (height i : Nat) :
-    nodeFold data i height =
-      ((List.range' (i * 2 ^ height) (2 ^ height)).map
-        (fun j => data.getD j 1)).prod := by
+private theorem nodeFold_eq_range_prod [Std.Associative op] [Std.LawfulIdentity op e]
+    {cap : Nat} (data : Vector M (cap * 2)) (height i : Nat) :
+    nodeFold op e data i height =
+      foldOp op e ((List.range' (i * 2 ^ height) (2 ^ height)).map
+        (fun j => data.getD j e)) := by
   induction height generalizing i with
-  | zero => simp [nodeFold]
+  | zero => simp [nodeFold, foldOp, Std.LawfulRightIdentity.right_id]
   | succ height ih =>
     rw [nodeFold, ih (i := i * 2), ih (i := i * 2 + 1)]
-    rw [← List.prod_append, ← List.map_append]
+    rw [← foldOp_append (op := op) (e := e), ← List.map_append]
     congr 2
     have hs : (i * 2 + 1) * 2 ^ height =
         i * 2 * 2 ^ height + 1 * 2 ^ height := by ring
@@ -232,22 +257,22 @@ private theorem nodeFold_eq_range_prod [Monoid M] {cap : Nat}
     rw [List.range'_append]
     congr 1 <;> simp only [pow_succ] <;> ring
 
-private def queryFold [Monoid M] {cap : Nat} (data : Vector M (cap * 2))
+private def queryFold (op : M → M → M) (e : M) {cap : Nat} (data : Vector M (cap * 2))
     (i l ql qr : Nat) : Nat → M
-  | 0 => data.getD i 1
+  | 0 => data.getD i e
   | height + 1 =>
       let m := l + 2 ^ height
-      if ql ≤ l ∧ l + 2 ^ (height + 1) ≤ qr then nodeFold data i (height + 1)
-      else if qr ≤ m then queryFold data (i * 2) l ql qr height
-      else if m ≤ ql then queryFold data (i * 2 + 1) m ql qr height
-      else queryFold data (i * 2) l ql m height *
-        queryFold data (i * 2 + 1) m m qr height
+      if ql ≤ l ∧ l + 2 ^ (height + 1) ≤ qr then nodeFold op e data i (height + 1)
+      else if qr ≤ m then queryFold op e data (i * 2) l ql qr height
+      else if m ≤ ql then queryFold op e data (i * 2 + 1) m ql qr height
+      else op (queryFold op e data (i * 2) l ql m height)
+        (queryFold op e data (i * 2 + 1) m m qr height)
 
-private theorem Impl.prod_eq_queryFold [Monoid M] (self : SegTree M)
-    (hvalid : internalValid self.data) (height i l ql qr : Nat)
+private theorem Impl.prod_eq_queryFold (self : SegTree M op e)
+    (hvalid : internalValid op self.data) (height i l ql qr : Nat)
     (hi0 : i ≠ 0) (hibound : (i + 1) * 2 ^ height ≤ self.cap * 2) :
     Impl.prod self i l (l + 2 ^ height) ql qr =
-      queryFold self.data i l ql qr height := by
+      queryFold op e self.data i l ql qr height := by
   induction height generalizing i l ql qr with
   | zero => simp [Impl.prod, queryFold]
   | succ height ih =>
@@ -275,17 +300,17 @@ private theorem Impl.prod_eq_queryFold [Monoid M] (self : SegTree M)
       rw [pow_succ, hend]
       simp_all
 
-private theorem queryFold_eq_range_prod [Monoid M] {cap : Nat}
-    (data : Vector M (cap * 2)) (height i l ql qr : Nat)
+private theorem queryFold_eq_range_prod [Std.Associative op] [Std.LawfulIdentity op e]
+    {cap : Nat} (data : Vector M (cap * 2)) (height i l ql qr : Nat)
     (hlq : l ≤ ql) (hqr : qr ≤ l + 2 ^ height) (hqq : ql < qr) :
-    queryFold data i l ql qr height =
-      ((List.range' (i * 2 ^ height + (ql - l)) (qr - ql)).map
-        (fun j => data.getD j 1)).prod := by
+    queryFold op e data i l ql qr height =
+      foldOp op e ((List.range' (i * 2 ^ height + (ql - l)) (qr - ql)).map
+        (fun j => data.getD j e)) := by
   induction height generalizing i l ql qr with
   | zero =>
     have : ql = l ∧ qr = l + 1 := by simp at hqr; omega
     rcases this with ⟨rfl, rfl⟩
-    simp [queryFold]
+    simp [queryFold, foldOp, Std.LawfulRightIdentity.right_id]
   | succ height ih =>
     have hp : 0 < 2 ^ height := pow_pos (by omega) _
     let m := l + 2 ^ height
@@ -302,8 +327,8 @@ private theorem queryFold_eq_range_prod [Monoid M] {cap : Nat}
       split
       · rename_i hleft
         rw [ih (i := i * 2) (l := l) (ql := ql) (qr := qr) hlq (by omega) hqq]
-        apply congrArg List.prod
-        apply congrArg (List.map (fun j => data.getD j 1))
+        apply congrArg (foldOp op e)
+        apply congrArg (List.map (fun j => data.getD j e))
         rw [List.range'_inj]
         exact ⟨rfl, Or.inr (by simp [pow_succ]; ring)⟩
       · rename_i hnleft
@@ -311,8 +336,8 @@ private theorem queryFold_eq_range_prod [Monoid M] {cap : Nat}
         · rename_i hright
           rw [ih (i := i * 2 + 1) (l := m) (ql := ql) (qr := qr)
             (by omega) (by simp [m, pow_succ] at hqr ⊢; omega) hqq]
-          apply congrArg List.prod
-          apply congrArg (List.map (fun j => data.getD j 1))
+          apply congrArg (foldOp op e)
+          apply congrArg (List.map (fun j => data.getD j e))
           rw [List.range'_inj]
           refine ⟨rfl, Or.inr ?_⟩
           have hsub : ql - l = 2 ^ height + (ql - m) := by
@@ -326,7 +351,7 @@ private theorem queryFold_eq_range_prod [Monoid M] {cap : Nat}
                 hlq (by omega) (by omega),
               ih (i := i * 2 + 1) (l := m) (ql := m) (qr := qr)
                 (by omega) (by simp [m, pow_succ] at hqr ⊢; omega) (by omega)]
-          rw [← List.prod_append, ← List.map_append]
+          rw [← foldOp_append (op := op) (e := e), ← List.map_append]
           congr 2
           have hs : (i * 2 + 1) * 2 ^ height + (m - m) =
               (i * 2 * 2 ^ height + (ql - l)) + (m - ql) := by
@@ -350,11 +375,11 @@ private theorem queryFold_eq_range_prod [Monoid M] {cap : Nat}
             simp [pow_succ]
             ring
 
-private theorem repairNode_except_parent [Mul M] {cap : Nat}
+private theorem repairNode_except_parent {cap : Nat}
     (data : Vector M (cap * 2)) (i : Fin cap) (hi : 1 < i.val)
-    (hvalid : internalValidExcept data i) :
-    internalValidExcept
-      (data.set i (data[i.val * 2] * data[i.val * 2 + 1]))
+    (hvalid : internalValidExcept op data i) :
+    internalValidExcept op
+      (data.set i (op data[i.val * 2] data[i.val * 2 + 1]))
       ⟨i.val / 2, by omega⟩ := by
   intro j hj0 hjp
   have hjpv : j.val ≠ i.val / 2 := by
@@ -375,10 +400,10 @@ private theorem repairNode_except_parent [Mul M] {cap : Nat}
       apply Fin.ext
       omega
 
-private theorem repairNode_root [Mul M] {cap : Nat}
+private theorem repairNode_root {cap : Nat}
     (data : Vector M (cap * 2)) (i : Fin cap) (_hi0 : i.val ≠ 0) (hi : i.val ≤ 1)
-    (hvalid : internalValidExcept data i) :
-    internalValid (data.set i (data[i.val * 2] * data[i.val * 2 + 1])) := by
+    (hvalid : internalValidExcept op data i) :
+    internalValid op (data.set i (op data[i.val * 2] data[i.val * 2 + 1])) := by
   intro j hj0
   by_cases hji : j = i
   · subst j
@@ -389,11 +414,11 @@ private theorem repairNode_root [Mul M] {cap : Nat}
     · exact hvalid j hj0 hji
     all_goals omega
 
-private theorem Impl.modifyUpData_internalValid [Mul M] {cap : Nat}
+private theorem Impl.modifyUpData_internalValid {cap : Nat}
     (data : Vector M (cap * 2)) (i : Fin cap) (hi0 : i.val ≠ 0)
-    (hvalid : internalValidExcept data i) :
-    internalValid (Impl.modifyUpData data i) := by
-  induction data, i using Impl.modifyUpData.induct with
+    (hvalid : internalValidExcept op data i) :
+    internalValid op (Impl.modifyUpData op data i) := by
+  induction data, i using Impl.modifyUpData.induct (op := op) with
   | case1 data i hroot =>
     rw [Impl.modifyUpData.eq_def]
     simp only [if_pos hroot]
@@ -406,47 +431,47 @@ private theorem Impl.modifyUpData_internalValid [Mul M] {cap : Nat}
       omega
     · exact repairNode_except_parent data i (by omega) hvalid
 
-@[simp] theorem set_sz [Mul M] [One M] (self : SegTree M)
+@[simp] theorem set_sz (self : SegTree M op e)
     (i : Fin self.sz) (x : M) : (self.set i x).sz = self.sz := rfl
 
-@[simp] theorem set_cap [Mul M] [One M] (self : SegTree M)
+@[simp] theorem set_cap (self : SegTree M op e)
     (i : Fin self.sz) (x : M) : (self.set i x).cap = self.cap := rfl
 
-@[simp] theorem get_set_self [Mul M] [One M] (self : SegTree M)
+@[simp] theorem get_set_self (self : SegTree M op e)
     (i : Fin self.sz) (x : M) : (self.set i x).get ⟨i, by simp⟩ = x := by
   exact Impl.setData_get_self self i x
 
-@[simp] theorem get_set_of_ne [Mul M] [One M] (self : SegTree M)
+@[simp] theorem get_set_of_ne (self : SegTree M op e)
     (i j : Fin self.sz) (x : M) (hij : j ≠ i) :
     (self.set i x).get ⟨j, by simp⟩ = self.get j := by
   exact Impl.setData_get_of_ne self i j x hij
 
-def Valid [Mul M] [One M] (self : SegTree M) : Prop :=
+def Valid (self : SegTree M op e) : Prop :=
   (∀ i : Fin self.cap, i.val ≠ 0 →
     self.data[i.val]'(by
       have hi := i.isLt
       have hc := self.cap_pos
       omega) =
-      self.data[i.val * 2]'(by
+      op (self.data[i.val * 2]'(by
         have hi := i.isLt
-        omega) *
-      self.data[i.val * 2 + 1]'(by
+        omega))
+      (self.data[i.val * 2 + 1]'(by
         have hi := i.isLt
-        omega)) ∧
+        omega))) ∧
   (∀ i : Fin self.cap, self.sz ≤ i.val →
     self.data[self.cap + i.val]'(by
       have hi := i.isLt
-      omega) = 1)
+      omega) = e)
 
-theorem ofArray_Valid [Mul M] [One M] (a : Array M) : Valid (ofArray a) := by
+theorem ofArray_Valid (op : M → M → M) (e : M) (a : Array M) : Valid (ofArray op e a) := by
   simp [Valid]
   constructor
   · intro i i0
     simp [ofArray, Fin.foldl_eq_finRange_foldl, Fin.foldr_eq_finRange_foldr]
     have hi : i.val < a.size.nextPowerOfTwo := i.isLt
-    change (buildData (List.finRange _) _)[i.val] =
-      (buildData (List.finRange _) _)[i.val * 2] *
-        (buildData (List.finRange _) _)[i.val * 2 + 1]
+    change (buildData op (List.finRange _) _)[i.val] =
+      op (buildData op (List.finRange _) _)[i.val * 2]
+        (buildData op (List.finRange _) _)[i.val * 2 + 1]
     exact buildData_valid _ (List.pairwise_lt_finRange _) _ i
       (List.mem_finRange i) i0
   ·
@@ -454,12 +479,12 @@ theorem ofArray_Valid [Mul M] [One M] (a : Array M) : Valid (ofArray a) := by
     intro i hsi
     have hi : i.val < a.size.nextPowerOfTwo := i.isLt
     let base : Vector M (a.size.nextPowerOfTwo * 2) :=
-      Vector.replicate (a.size.nextPowerOfTwo * 2) 1
+      Vector.replicate (a.size.nextPowerOfTwo * 2) e
     let leaves : Vector M (a.size.nextPowerOfTwo * 2) :=
       (List.finRange a.size).foldl
         (fun dat j => dat.set (a.size.nextPowerOfTwo + j.val) a[j.val]) base
-    change (buildData (List.finRange a.size.nextPowerOfTwo) leaves).get
-      ⟨a.size.nextPowerOfTwo + i.val, by omega⟩ = 1
+    change (buildData op (List.finRange a.size.nextPowerOfTwo) leaves).get
+      ⟨a.size.nextPowerOfTwo + i.val, by omega⟩ = e
     calc
       _ = leaves[a.size.nextPowerOfTwo + i.val] :=
         buildData_get_of_cap_le _ _ _ (by omega) (by omega)
@@ -478,13 +503,13 @@ theorem ofArray_Valid [Mul M] [One M] (a : Array M) : Valid (ofArray a) := by
         intro j hj
         have hj' := j.isLt
         omega
-      _ = 1 := by simp [base]
+      _ = e := by simp [base]
 
-theorem set_Valid [Mul M] [One M] (self : SegTree M) (hself : Valid self)
+theorem set_Valid (self : SegTree M op e) (hself : Valid self)
     (i : Fin self.sz) (x : M) : Valid (self.set i x) := by
   rcases hself with ⟨hinternal, hpadding⟩
   constructor
-  · change internalValid (Impl.setDataAt self i x)
+  · change internalValid op (Impl.setDataAt self i x)
     unfold Impl.setDataAt Impl.setData
     dsimp only
     split
@@ -508,7 +533,7 @@ theorem set_Valid [Mul M] [One M] (self : SegTree M) (hself : Valid self)
         · exact hinternal k hk0
         all_goals omega
   · change ∀ j : Fin self.cap, self.sz ≤ j.val →
-      (Impl.setDataAt self i x)[self.cap + j.val] = 1
+      (Impl.setDataAt self i x)[self.cap + j.val] = e
     intro j hsj
     have hi := i.isLt
     have hj := j.isLt
@@ -520,33 +545,34 @@ theorem set_Valid [Mul M] [One M] (self : SegTree M) (hself : Valid self)
     · rw [Vector.getElem_set_ne]
       · exact hpadding j hsj
       · omega
-    · change (Impl.modifyUpData (self.data.set (self.cap + i.val) x _) _).get
-        ⟨self.cap + j.val, by omega⟩ = 1
+    · change (Impl.modifyUpData op (self.data.set (self.cap + i.val) x _) _).get
+        ⟨self.cap + j.val, by omega⟩ = e
       rw [Impl.modifyUpData_get_of_cap_le _ _ _ (by omega) (by omega)]
-      change (self.data.set (self.cap + i.val) x _)[self.cap + j.val] = 1
+      change (self.data.set (self.cap + i.val) x _)[self.cap + j.val] = e
       rw [Vector.getElem_set_ne]
       · exact hpadding j hsj
       · omega
 
-@[simp] theorem prod_of_ge [Mul M] [One M] (self : SegTree M)
-    (l r : Fin (self.sz + 1)) (h : r ≤ l) : self.prod l r = 1 := by
+@[simp] theorem prod_of_ge (self : SegTree M op e)
+    (l r : Fin (self.sz + 1)) (h : r ≤ l) : self.prod l r = e := by
   simp [prod, h]
 
-@[simp] theorem prod_self [Mul M] [One M] (self : SegTree M)
-    (i : Fin (self.sz + 1)) : self.prod i i = 1 := by
+@[simp] theorem prod_self (self : SegTree M op e)
+    (i : Fin (self.sz + 1)) : self.prod i i = e := by
   exact prod_of_ge self i i (by rfl)
 
-theorem prod_eq_leaf_range [Monoid M] (self : SegTree M) (hvalid : Valid self)
+theorem prod_eq_leaf_range [Std.Associative op] [Std.LawfulIdentity op e]
+    (self : SegTree M op e) (hvalid : Valid self)
     (l r : Fin (self.sz + 1)) :
     self.prod l r =
       ((List.range' (self.cap + l.val) (r.val - l.val)).map
-        (fun j => self.data.getD j 1)).prod := by
+        (fun j => self.data.getD j e)).foldr op e := by
   by_cases hlr : r ≤ l
   · have : r.val - l.val = 0 := by omega
     simp [prod_of_ge self l r hlr, this]
   · have hlr' : l.val < r.val := by omega
     rcases self.cap_pow2 with ⟨height, hcap⟩
-    have hinter : internalValid self.data := hvalid.1
+    have hinter : internalValid op self.data := hvalid.1
     unfold prod
     simp only [if_neg (by omega : ¬ l ≥ r)]
     calc
@@ -554,24 +580,24 @@ theorem prod_eq_leaf_range [Monoid M] (self : SegTree M) (hvalid : Valid self)
           Impl.prod self 1 0 (0 + 2 ^ height) l.val r.val := by
         congr
         omega
-      _ = queryFold self.data 1 0 l.val r.val height :=
+      _ = queryFold op e self.data 1 0 l.val r.val height :=
         Impl.prod_eq_queryFold self hinter height 1 0 l.val r.val
           (by omega) (by
             rw [hcap]
             exact Nat.le_of_eq (by ring))
-      _ = ((List.range' (1 * 2 ^ height + (l.val - 0))
-          (r.val - l.val)).map (fun j => self.data.getD j 1)).prod :=
+      _ = foldOp op e ((List.range' (1 * 2 ^ height + (l.val - 0))
+          (r.val - l.val)).map (fun j => self.data.getD j e)) :=
         queryFold_eq_range_prod self.data height 1 0 l.val r.val
           (by omega) (by
             have hr := r.isLt
             have hs := self.sz_le
             omega) hlr'
-      _ = ((List.range' (self.cap + l.val) (r.val - l.val)).map
-          (fun j => self.data.getD j 1)).prod := by simp [hcap]
+      _ = foldOp op e ((List.range' (self.cap + l.val) (r.val - l.val)).map
+          (fun j => self.data.getD j e)) := by simp [hcap]
 
-private theorem leafRange_eq_getRange [Monoid M] (self : SegTree M)
+private theorem leafRange_eq_getRange (self : SegTree M op e)
     (start len : Nat) (hbound : start + len ≤ self.sz) :
-    (List.range' (self.cap + start) len).map (fun j => self.data.getD j 1) =
+    (List.range' (self.cap + start) len).map (fun j => self.data.getD j e) =
       (List.range' start len).map self.get! := by
   induction len with
   | zero => simp
@@ -583,23 +609,24 @@ private theorem leafRange_eq_getRange [Monoid M] (self : SegTree M)
       have hk : start + len < self.sz := by omega
       have hs := self.sz_le
       have hc := self.cap_pos
-      simp [get!, get?, hk, get, Vector.getD, Array.getD]
+      simp [get!, hk, get, Vector.getD, Array.getD]
       rw [dif_pos (by omega)]
       congr 1
       omega
 
-theorem prod_eq_range_prod [Monoid M] (self : SegTree M) (hvalid : Valid self)
+theorem prod_eq_range_prod [Std.Associative op] [Std.LawfulIdentity op e]
+    (self : SegTree M op e) (hvalid : Valid self)
     (l r : Fin (self.sz + 1)) :
     self.prod l r =
-      ((List.range' l.val (r.val - l.val)).map self.get!).prod := by
+      ((List.range' l.val (r.val - l.val)).map self.get!).foldr op e := by
   rw [prod_eq_leaf_range self hvalid l r]
-  apply congrArg List.prod
+  apply congrArg (foldOp op e)
   apply leafRange_eq_getRange
   have hr := r.isLt
   omega
 
 example :
-    let tree := ofArray #[2, 3, 5, 7]
+    let tree := ofArray (· * ·) 1 #[2, 3, 5, 7]
     tree.allProd == 210 && tree.maxRight 0 (· ≤ 30) == 3 &&
       tree.minLeft 4 (· ≤ 35) == 2 && tree.maxRight 1 (· ≤ 15) == 3 &&
       tree.minLeft 3 (· ≤ 15) == 1 && tree.maxRight 4 (· ≤ 0) == 4 &&
@@ -609,13 +636,13 @@ example :
 /-- In range, the `!` variants agree with the `Fin`-indexed originals; range bounds
 accept `sz` while position-like arguments accept at most `sz - 1`. -/
 example :
-    let tree := ofArray #[2, 3, 5, 7]
+    let tree := ofArray (· * ·) 1 #[2, 3, 5, 7]
     tree.get! 2 == 5 && tree.prod! 1 3 == 15 && (tree.set! 0 11).get! 0 == 11 &&
       tree.maxRight! 0 (· ≤ 30) == 3 && tree.minLeft! 4 (· ≤ 35) == 2 := by
   native_decide
 
 example :
-    let tree := ofArray #[2, 3, 5, 7]
+    let tree := ofArray (· * ·) 1 #[2, 3, 5, 7]
     (tree.get? 3).isSome && (tree.get? 4).isNone &&
       (tree.set? 3 1).isSome && (tree.set? 4 1).isNone &&
       (tree.prod? 0 4).isSome && (tree.prod? 0 5).isNone &&
