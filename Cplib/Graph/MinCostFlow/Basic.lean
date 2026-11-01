@@ -88,7 +88,7 @@ abbrev QueueEntry (n : Nat) := Int × Fin n
 
 def queueCompare (x y : QueueEntry n) : Ordering := compare x.1 y.1
 
-def dijkstraLoop (self : MinCostFlow n) : Nat → Heap (QueueEntry n) →
+def dijkstraLoop (self : MinCostFlow n) : Nat → Heap (QueueEntry n) queueCompare →
     Array (Option Int) → Array Nat → Array (Option Int) × Array Nat
   | 0, _, distance, previous => (distance, previous)
   | fuel + 1, queue, distance, previous =>

@@ -9,17 +9,18 @@ namespace Cplib
 
 Specification of the binary heap in `Structure.Heap.Basic`.
 
-The comparator is data, not a typeclass, so every order statement here carries
-its assumption about it explicitly: `LawfulCmp heap.cmp`. Under that assumption
-`empty`, `add`, `pop` and `ofArray` all produce heaps satisfying `Valid`, and a
-`Valid` heap's `top` is a minimum (`top_le`). `drain` then empties such a heap
-into a sorted list (`drain_sorted`), which makes `ofArray` followed by `drain`
-a verified heapsort (`drain_ofArray_sorted`, `drain_ofArray_perm`).
+The comparator is data in the heap's type, not a typeclass, so every order
+statement here carries its assumption about it explicitly: `LawfulCmp cmp`.
+Under that assumption `empty`, `add`, `pop` and `ofArray` all produce heaps
+satisfying `Valid`, and a `Valid` heap's `top` is a minimum (`top_le`). `drain`
+then empties such a heap into a sorted list (`drain_sorted`), which makes
+`ofArray` followed by `drain` a verified heapsort (`drain_ofArray_sorted`,
+`drain_ofArray_perm`).
 -/
 
 namespace Heap
 
-variable {α : Type}
+variable {α : Type} {cmp : α → α → Ordering}
 
 /-! ## The comparator -/
 
@@ -94,27 +95,27 @@ theorem LawfulCmp.swap {cmp : α → α → Ordering} (h : LawfulCmp cmp) :
 /-! ## The heap order -/
 
 /-- The min-heap property: every node is at least its parent under `cmp`. -/
-def Valid (heap : Heap α) : Prop :=
+def Valid (heap : Heap α cmp) : Prop :=
   ∀ i : Nat, (h : i < heap.n) → i ≠ 0 →
-    LE heap.cmp heap.data[(i - 1) / 2] heap.data[i]
+    LE cmp heap.data[(i - 1) / 2] heap.data[i]
 
 /-- `Valid` restricted to the nodes whose parent sits at index `b` or later.
 
 This is what bottom-up heapification has established once it has sifted down at
 `b`, and it is how `Impl.modifyDown` is specified: `Valid` is the case `b = 0`.
 -/
-def ValidFrom (heap : Heap α) (b : Nat) : Prop :=
+def ValidFrom (heap : Heap α cmp) (b : Nat) : Prop :=
   ∀ i : Nat, (h : i < heap.n) → i ≠ 0 → b ≤ (i - 1) / 2 →
-    LE heap.cmp heap.data[(i - 1) / 2] heap.data[i]
+    LE cmp heap.data[(i - 1) / 2] heap.data[i]
 
-theorem valid_iff_validFrom_zero (heap : Heap α) : heap.Valid ↔ heap.ValidFrom 0 :=
+theorem valid_iff_validFrom_zero (heap : Heap α cmp) : heap.Valid ↔ heap.ValidFrom 0 :=
   ⟨fun h i hi hi0 _ => h i hi hi0, fun h i hi hi0 => h i hi hi0 (Nat.zero_le _)⟩
 
 /-- In a `Valid` heap the root is at most every element under `cmp`, so `top` really
 is the minimum. -/
-theorem top_le (heap : Heap α) (hlaw : LawfulCmp heap.cmp) (hvalid : heap.Valid)
+theorem top_le (heap : Heap α cmp) (hlaw : LawfulCmp cmp) (hvalid : heap.Valid)
     (hpos : 0 < heap.n) (i : Nat) (hi : i < heap.n) :
-    LE heap.cmp (heap.top hpos) heap.data[i] := by
+    LE cmp (heap.top hpos) heap.data[i] := by
   induction i using Nat.strong_induction_on with
   | h k ih =>
       by_cases hk0 : k = 0
@@ -123,9 +124,9 @@ theorem top_le (heap : Heap α) (hlaw : LawfulCmp heap.cmp) (hvalid : heap.Valid
       · exact hlaw.trans (ih ((k - 1) / 2) (by omega) (by omega)) (hvalid k hi hk0)
 
 /-- The same, for an element given by membership rather than by index. -/
-theorem top_le_of_mem (heap : Heap α) (hlaw : LawfulCmp heap.cmp) (hvalid : heap.Valid)
+theorem top_le_of_mem (heap : Heap α cmp) (hlaw : LawfulCmp cmp) (hvalid : heap.Valid)
     (hpos : 0 < heap.n) {b : α} (hb : b ∈ heap.data.toList) :
-    LE heap.cmp (heap.top hpos) b := by
+    LE cmp (heap.top hpos) b := by
   obtain ⟨j, hj, hje⟩ := List.getElem_of_mem hb
   rw [Vector.length_toList] at hj
   rw [Vector.getElem_toList] at hje
@@ -138,29 +139,21 @@ theorem top_le_of_mem (heap : Heap α) (hlaw : LawfulCmp heap.cmp) (hvalid : hea
 
 /-! ## Shape and contents -/
 
-@[simp] theorem Impl.modifyUp_n (heap : Heap α) (idx : Fin heap.n) :
+@[simp] theorem Impl.modifyUp_n (heap : Heap α cmp) (idx : Fin heap.n) :
     (Impl.modifyUp heap idx).n = heap.n := by
   fun_induction Impl.modifyUp <;> simp_all
 
-@[simp] theorem Impl.modifyUp_cmp (heap : Heap α) (idx : Fin heap.n) :
-    (Impl.modifyUp heap idx).cmp = heap.cmp := by
-  fun_induction Impl.modifyUp <;> simp_all
-
-theorem Impl.modifyUp_data_perm (heap : Heap α) (idx : Fin heap.n) :
+theorem Impl.modifyUp_data_perm (heap : Heap α cmp) (idx : Fin heap.n) :
     (Impl.modifyUp heap idx).data.toList.Perm heap.data.toList := by
   fun_induction Impl.modifyUp <;> simp_all
   apply List.Perm.trans (by assumption)
   apply Vector.toList_swap_perm
 
-@[simp] theorem Impl.modifyDown_n (heap : Heap α) (idx : Fin heap.n) :
+@[simp] theorem Impl.modifyDown_n (heap : Heap α cmp) (idx : Fin heap.n) :
     (Impl.modifyDown heap idx).n = heap.n := by
   fun_induction Impl.modifyDown <;> simp_all
 
-@[simp] theorem Impl.modifyDown_cmp (heap : Heap α) (idx : Fin heap.n) :
-    (Impl.modifyDown heap idx).cmp = heap.cmp := by
-  fun_induction Impl.modifyDown <;> simp_all
-
-theorem Impl.modifyDown_data_perm (heap : Heap α) (idx : Fin heap.n) :
+theorem Impl.modifyDown_data_perm (heap : Heap α cmp) (idx : Fin heap.n) :
     (Impl.modifyDown heap idx).data.toList.Perm heap.data.toList := by
   fun_induction Impl.modifyDown <;> simp_all
   all_goals
@@ -173,24 +166,17 @@ theorem Impl.modifyDown_data_perm (heap : Heap α) (idx : Fin heap.n) :
 @[simp] theorem empty_data (cmp : α → α → Ordering) :
     (empty cmp).data = #v[] := rfl
 
-@[simp] theorem empty_cmp (cmp : α → α → Ordering) :
-    (empty cmp).cmp = cmp := rfl
+@[simp] theorem size_eq_n (heap : Heap α cmp) : heap.size = heap.n := rfl
 
-@[simp] theorem size_eq_n (heap : Heap α) : heap.size = heap.n := rfl
-
-@[simp] theorem isEmpty_eq_true (heap : Heap α) :
+@[simp] theorem isEmpty_eq_true (heap : Heap α cmp) :
     heap.isEmpty = true ↔ heap.n = 0 := by
   simp [isEmpty]
 
-@[simp] theorem add_n (heap : Heap α) (x : α) :
+@[simp] theorem add_n (heap : Heap α cmp) (x : α) :
     (heap.add x).n = heap.n + 1 := by
   simp [add]
 
-@[simp] theorem add_cmp (heap : Heap α) (x : α) :
-    (heap.add x).cmp = heap.cmp := by
-  simp [add]
-
-theorem add_data_perm (heap : Heap α) (x : α) :
+theorem add_data_perm (heap : Heap α cmp) (x : α) :
     (heap.add x).data.toList.Perm (heap.data.toList ++ [x]) := by
   unfold add
   apply List.Perm.trans (Impl.modifyUp_data_perm _ _)
@@ -204,15 +190,15 @@ and `j`'s parent is already below each of `j`'s children.
 The second clause is what the first swap needs. When the element at `j` trades
 places with its parent, the parent's value lands on top of `j`'s children, and
 nothing in the first clause says it belongs there. -/
-def Impl.UpInv (heap : Heap α) (j : Nat) : Prop :=
+def Impl.UpInv (heap : Heap α cmp) (j : Nat) : Prop :=
   (∀ i : Nat, (h : i < heap.n) → i ≠ 0 → i ≠ j →
-      LE heap.cmp heap.data[(i - 1) / 2] heap.data[i]) ∧
+      LE cmp heap.data[(i - 1) / 2] heap.data[i]) ∧
   (∀ c : Nat, (h : c < heap.n) → (hj : j < heap.n) → j ≠ 0 → (c - 1) / 2 = j →
-      LE heap.cmp heap.data[(j - 1) / 2] heap.data[c])
+      LE cmp heap.data[(j - 1) / 2] heap.data[c])
 
 /-- Carrying an element up from `idx` restores the heap order. -/
-theorem Impl.modifyUp_Valid : ∀ (heap : Heap α) (idx : Fin heap.n),
-    LawfulCmp heap.cmp → Impl.UpInv heap idx.val → (Impl.modifyUp heap idx).Valid := by
+theorem Impl.modifyUp_Valid : ∀ (heap : Heap α cmp) (idx : Fin heap.n),
+    LawfulCmp cmp → Impl.UpInv heap idx.val → (Impl.modifyUp heap idx).Valid := by
   intro heap idx
   fun_induction Impl.modifyUp heap idx with
   | case1 h idx h0 =>
@@ -237,13 +223,13 @@ theorem Impl.modifyUp_Valid : ∀ (heap : Heap α) (idx : Fin heap.n),
             if j = idx.val then h.data[par] else h.data[j] := by
         intro j hj
         simp [ndata, Vector.getElem_swap]
-      have hle_ki : LE h.cmp h.data[idx] h.data[par] := by
+      have hle_ki : LE cmp h.data[idx] h.data[par] := by
         refine hlaw.le_of_not_le ?_
         simpa [LE] using hgt
       refine ih hlaw ⟨?_, ?_⟩
       · intro i hi hi0 hip
         replace hi : i < h.n := hi
-        show LE h.cmp ndata[(i - 1) / 2] ndata[i]
+        show LE cmp ndata[(i - 1) / 2] ndata[i]
         rw [hnd ((i - 1) / 2) (by omega), hnd i hi, if_neg hip]
         by_cases hA : (i - 1) / 2 = (par : Nat)
         · rw [if_pos hA]
@@ -268,7 +254,7 @@ theorem Impl.modifyUp_Valid : ∀ (heap : Heap α) (idx : Fin heap.n),
       · intro c hc hp hp0 hcp
         replace hc : c < h.n := hc
         replace hp : (par : Nat) < h.n := hp
-        show LE h.cmp ndata[((par : Nat) - 1) / 2] ndata[c]
+        show LE cmp ndata[((par : Nat) - 1) / 2] ndata[c]
         rw [hnd (((par : Nat) - 1) / 2) (by omega), hnd c hc,
           if_neg (by omega : ((par : Nat) - 1) / 2 ≠ (par : Nat)),
           if_neg (by omega : ((par : Nat) - 1) / 2 ≠ idx.val),
@@ -284,14 +270,14 @@ theorem Impl.modifyUp_Valid : ∀ (heap : Heap α) (idx : Fin heap.n),
 
 /-- `add` keeps the heap order: the new element goes in at a leaf, which has no
 children to violate, and is then carried up. -/
-theorem add_Valid (heap : Heap α) (hlaw : LawfulCmp heap.cmp) (hvalid : heap.Valid) (x : α) :
+theorem add_Valid (heap : Heap α cmp) (hlaw : LawfulCmp cmp) (hvalid : heap.Valid) (x : α) :
     (heap.add x).Valid := by
   unfold add
   refine Impl.modifyUp_Valid _ _ hlaw ⟨?_, ?_⟩
   · intro i hi hi0 hin
     replace hi : i < heap.n + 1 := hi
     replace hin : i ≠ heap.n := hin
-    show LE heap.cmp (heap.data.push x)[(i - 1) / 2] (heap.data.push x)[i]
+    show LE cmp (heap.data.push x)[(i - 1) / 2] (heap.data.push x)[i]
     rw [Vector.getElem_push_lt (by omega), Vector.getElem_push_lt (by omega)]
     exact hvalid i (by omega) hi0
   · -- The new leaf has no children: they would sit past the end of the vector.
@@ -311,18 +297,18 @@ already below `j`'s children. `b` is what makes the same statement serve both
 callers: `pop` sifts down from the root with `b = 0` and wants `Valid` back,
 while bottom-up heapification sifts down at `b` itself and only ever claims the
 range it has reached. -/
-def Impl.DownInv (heap : Heap α) (b : Nat) (j : Nat) : Prop :=
+def Impl.DownInv (heap : Heap α cmp) (b : Nat) (j : Nat) : Prop :=
   (∀ i : Nat, (h : i < heap.n) → i ≠ 0 → b ≤ (i - 1) / 2 → (i - 1) / 2 ≠ j →
-      LE heap.cmp heap.data[(i - 1) / 2] heap.data[i]) ∧
+      LE cmp heap.data[(i - 1) / 2] heap.data[i]) ∧
   (∀ c : Nat, (h : c < heap.n) → (hj : j < heap.n) → j ≠ 0 → b ≤ (j - 1) / 2 →
-      (c - 1) / 2 = j → LE heap.cmp heap.data[(j - 1) / 2] heap.data[c])
+      (c - 1) / 2 = j → LE cmp heap.data[(j - 1) / 2] heap.data[c])
 
 /-- The child `modifyDown` descends into is at or below both children. -/
-theorem Impl.le_min_child (heap : Heap α) (hlaw : LawfulCmp heap.cmp) (idx a b m : Fin heap.n)
+theorem Impl.le_min_child (heap : Heap α cmp) (hlaw : LawfulCmp cmp) (idx a b m : Fin heap.n)
     (ha : (a : Nat) = idx.val * 2 + 1) (hb : (b : Nat) = idx.val * 2 + 2)
-    (hm : m = if _h : (heap.cmp heap.data[a] heap.data[b]).isLT = true then a else b) :
+    (hm : m = if _h : (cmp heap.data[a] heap.data[b]).isLT = true then a else b) :
     ∀ c, (hc : c < heap.n) → c ≠ 0 → (c - 1) / 2 = idx.val →
-      LE heap.cmp heap.data[m] heap.data[c] := by
+      LE cmp heap.data[m] heap.data[c] := by
   intro c hc hc0 hcq
   subst hm
   have hc12 : c = (a : Nat) ∨ c = (b : Nat) := by omega
@@ -335,9 +321,9 @@ theorem Impl.le_min_child (heap : Heap α) (hlaw : LawfulCmp heap.cmp) (idx a b 
 
 /-- Where `modifyDown` stops, the node is already below both its children, and
 the whole range is in order. -/
-theorem Impl.stop_ValidFrom (heap : Heap α) (b : Nat) (idx : Fin heap.n)
+theorem Impl.stop_ValidFrom (heap : Heap α cmp) (b : Nat) (idx : Fin heap.n)
     (hchild : ∀ c, (hc : c < heap.n) → c ≠ 0 → (c - 1) / 2 = idx.val →
-      LE heap.cmp heap.data[idx] heap.data[c])
+      LE cmp heap.data[idx] heap.data[c])
     (hinv : Impl.DownInv heap b idx.val) : heap.ValidFrom b := by
   intro i hi hi0 hb
   by_cases hq : (i - 1) / 2 = idx.val
@@ -349,17 +335,17 @@ theorem Impl.stop_ValidFrom (heap : Heap α) (b : Nat) (idx : Fin heap.n)
 
 /-- Swapping a node with a child that is below it, and below its sibling, moves
 the invariant down to that child. -/
-theorem Impl.swap_DownInv (heap : Heap α) (b : Nat) (idx m : Fin heap.n)
-    (hlaw : LawfulCmp heap.cmp)
+theorem Impl.swap_DownInv (heap : Heap α cmp) (b : Nat) (idx m : Fin heap.n)
+    (hlaw : LawfulCmp cmp)
     (hm : (m : Nat) = idx.val * 2 + 1 ∨ (m : Nat) = idx.val * 2 + 2)
     (hminle : ∀ c, (hc : c < heap.n) → c ≠ 0 → (c - 1) / 2 = idx.val →
-      LE heap.cmp heap.data[m] heap.data[c])
-    (hgt : ¬ LE heap.cmp heap.data[idx] heap.data[m])
+      LE cmp heap.data[m] heap.data[c])
+    (hgt : ¬ LE cmp heap.data[idx] heap.data[m])
     (hinv : Impl.DownInv heap b idx.val) :
-    Impl.DownInv (⟨heap.n, heap.data.swap idx.val m.val idx.isLt m.isLt, heap.cmp⟩ :
-      Heap α) b m.val := by
+    Impl.DownInv (⟨heap.n, heap.data.swap idx.val m.val idx.isLt m.isLt⟩ :
+      Heap α cmp) b m.val := by
   have hmidx : idx.val < m.val := by omega
-  have hle_mk : LE heap.cmp heap.data[m] heap.data[idx] := hlaw.le_of_not_le hgt
+  have hle_mk : LE cmp heap.data[m] heap.data[idx] := hlaw.le_of_not_le hgt
   simp only [Fin.getElem_fin] at hminle hle_mk
   have hnd : ∀ j, (hj : j < heap.n) →
       (heap.data.swap idx.val m.val idx.isLt m.isLt)[j] =
@@ -371,7 +357,7 @@ theorem Impl.swap_DownInv (heap : Heap α) (b : Nat) (idx m : Fin heap.n)
   · intro i hi hi0 hb hq
     replace hi : i < heap.n := hi
     replace hq : (i - 1) / 2 ≠ m.val := hq
-    show LE heap.cmp _ _
+    show LE cmp _ _
     rw [hnd ((i - 1) / 2) (by omega), hnd i hi]
     by_cases hik : i = idx.val
     · -- `idx` itself, now holding the child's value: the second clause.
@@ -393,7 +379,7 @@ theorem Impl.swap_DownInv (heap : Heap α) (b : Nat) (idx m : Fin heap.n)
           exact hinv.1 i hi hi0 hb hq2
   · intro c hc hmlt hm0 hb hcm
     replace hc : c < heap.n := hc
-    show LE heap.cmp _ _
+    show LE cmp _ _
     rw [hnd ((m.val - 1) / 2) (by omega), hnd c hc,
       if_pos (by omega : (m.val - 1) / 2 = idx.val),
       if_neg (by omega : c ≠ idx.val), if_neg (by omega : c ≠ m.val)]
@@ -402,8 +388,8 @@ theorem Impl.swap_DownInv (heap : Heap α) (b : Nat) (idx m : Fin heap.n)
     exact h1
 
 /-- Sifting down from `idx` puts the range from `b` on in order. -/
-theorem Impl.modifyDown_ValidFrom : ∀ (heap : Heap α) (idx : Fin heap.n) (b : Nat),
-    LawfulCmp heap.cmp → Impl.DownInv heap b idx.val →
+theorem Impl.modifyDown_ValidFrom : ∀ (heap : Heap α cmp) (idx : Fin heap.n) (b : Nat),
+    LawfulCmp cmp → Impl.DownInv heap b idx.val →
       (Impl.modifyDown heap idx).ValidFrom b := by
   intro heap idx b
   fun_induction Impl.modifyDown heap idx with
@@ -454,7 +440,7 @@ theorem Impl.modifyDown_ValidFrom : ∀ (heap : Heap α) (idx : Fin heap.n) (b :
       exfalso
       omega
 
-@[simp] theorem Impl.heapifyFrom_n (heap : Heap α) (k : Nat) :
+@[simp] theorem Impl.heapifyFrom_n (heap : Heap α cmp) (k : Nat) :
     (Impl.heapifyFrom heap k).n = heap.n := by
   induction k generalizing heap with
   | zero => rfl
@@ -464,17 +450,7 @@ theorem Impl.modifyDown_ValidFrom : ∀ (heap : Heap α) (idx : Fin heap.n) (b :
       · rw [ih, Impl.modifyDown_n]
       · exact ih heap
 
-@[simp] theorem Impl.heapifyFrom_cmp (heap : Heap α) (k : Nat) :
-    (Impl.heapifyFrom heap k).cmp = heap.cmp := by
-  induction k generalizing heap with
-  | zero => rfl
-  | succ k ih =>
-      rw [Impl.heapifyFrom]
-      split
-      · rw [ih, Impl.modifyDown_cmp]
-      · exact ih heap
-
-theorem Impl.heapifyFrom_data_perm (heap : Heap α) (k : Nat) :
+theorem Impl.heapifyFrom_data_perm (heap : Heap α cmp) (k : Nat) :
     (Impl.heapifyFrom heap k).data.toList.Perm heap.data.toList := by
   induction k generalizing heap with
   | zero => exact List.Perm.refl _
@@ -490,10 +466,6 @@ theorem Impl.heapifyFrom_data_perm (heap : Heap α) (k : Nat) :
     (ofArray xs cmp).n = xs.size := by
   simp [ofArray]
 
-@[simp] theorem ofArray_cmp (xs : Array α) (cmp : α → α → Ordering) :
-    (ofArray xs cmp).cmp = cmp := by
-  simp [ofArray]
-
 theorem ofArray_data_perm (xs : Array α) (cmp : α → α → Ordering) :
     (ofArray xs cmp).data.toList.Perm xs.toList := by
   unfold ofArray
@@ -501,7 +473,7 @@ theorem ofArray_data_perm (xs : Array α) (cmp : α → α → Ordering) :
 
 /-- Bottom-up heapification: sifting down at `k - 1, …, 0` turns the order on the
 range from `k` on into the order on the whole heap. -/
-theorem Impl.heapifyFrom_ValidFrom : ∀ (k : Nat) (heap : Heap α), LawfulCmp heap.cmp →
+theorem Impl.heapifyFrom_ValidFrom : ∀ (k : Nat) (heap : Heap α cmp), LawfulCmp cmp →
     heap.ValidFrom k → (Impl.heapifyFrom heap k).ValidFrom 0 := by
   intro k
   induction k with
@@ -511,7 +483,7 @@ theorem Impl.heapifyFrom_ValidFrom : ∀ (k : Nat) (heap : Heap α), LawfulCmp h
       rw [Impl.heapifyFrom]
       by_cases hk : k < heap.n
       · rw [dif_pos hk]
-        refine ih _ (by rw [Impl.modifyDown_cmp]; exact hlaw) ?_
+        refine ih _ hlaw ?_
         refine Impl.modifyDown_ValidFrom heap ⟨k, hk⟩ k hlaw (?_ : Impl.DownInv heap k k)
         refine ⟨?_, ?_⟩
         · intro i hi hi0 hb hq
@@ -535,18 +507,13 @@ theorem ofArray_Valid (xs : Array α) (cmp : α → α → Ordering) (hlaw : Law
   replace hi : i < xs.size := hi
   exact absurd hb (by omega)
 
-@[simp] theorem pop_n (heap : Heap α) (h : 0 < heap.n) :
+@[simp] theorem pop_n (heap : Heap α cmp) (h : 0 < heap.n) :
     (heap.pop h).n = heap.n - 1 := by
   simp [pop]
   split <;> simp
 
-@[simp] theorem pop_cmp (heap : Heap α) (h : 0 < heap.n) :
-    (heap.pop h).cmp = heap.cmp := by
-  simp [pop]
-  split <;> simp
-
 /-- `pop` removes one occurrence of `top` and keeps every other element. -/
-theorem pop_data_perm (heap : Heap α) (h : 0 < heap.n) :
+theorem pop_data_perm (heap : Heap α cmp) (h : 0 < heap.n) :
     ((heap.pop h).data.toList ++ [heap.top h]).Perm heap.data.toList := by
   let last : Fin heap.n := ⟨heap.n - 1, by omega⟩
   let swapped := heap.data.swap 0 last
@@ -562,7 +529,7 @@ theorem pop_data_perm (heap : Heap α) (h : 0 < heap.n) :
   have hpop : swapped.pop.toList ++ [heap.top h] = swapped.toList := by
     rw [Vector.toList_pop, ← hlast, List.dropLast_append_getLast]
   by_cases hp : 0 < heap.n - 1
-  · let base : Heap α := ⟨heap.n - 1, swapped.pop, heap.cmp⟩
+  · let base : Heap α cmp := ⟨heap.n - 1, swapped.pop⟩
     have heq : heap.pop h = Impl.modifyDown base ⟨0, hp⟩ := by
       simp [pop, hp, base, swapped, last]
     rw [heq]
@@ -571,7 +538,7 @@ theorem pop_data_perm (heap : Heap α) (h : 0 < heap.n) :
     rw [hpop]
     dsimp [swapped]
     exact Vector.toList_swap_perm heap.data ⟨0, h⟩ last
-  · let base : Heap α := ⟨heap.n - 1, swapped.pop, heap.cmp⟩
+  · let base : Heap α cmp := ⟨heap.n - 1, swapped.pop⟩
     have heq : heap.pop h = base := by
       simp [pop, hp, base, swapped, last]
     rw [heq, hpop]
@@ -579,7 +546,7 @@ theorem pop_data_perm (heap : Heap α) (h : 0 < heap.n) :
     exact Vector.toList_swap_perm heap.data ⟨0, h⟩ last
 
 /-- `pop` keeps the heap order. -/
-theorem pop_Valid (heap : Heap α) (hlaw : LawfulCmp heap.cmp) (hvalid : heap.Valid)
+theorem pop_Valid (heap : Heap α cmp) (hlaw : LawfulCmp cmp) (hvalid : heap.Valid)
     (h : 0 < heap.n) : (heap.pop h).Valid := by
   unfold pop
   split
@@ -590,7 +557,7 @@ theorem pop_Valid (heap : Heap α) (hlaw : LawfulCmp heap.cmp) (hvalid : heap.Va
       intro i hi hi0 _ hq
       replace hi : i < heap.n - 1 := hi
       replace hq : (i - 1) / 2 ≠ 0 := hq
-      show LE heap.cmp ((heap.data.swap 0 (heap.n - 1)).pop)[(i - 1) / 2]
+      show LE cmp ((heap.data.swap 0 (heap.n - 1)).pop)[(i - 1) / 2]
         ((heap.data.swap 0 (heap.n - 1)).pop)[i]
       rw [Vector.getElem_pop, Vector.getElem_pop,
         Vector.getElem_swap_of_ne (by omega) (by omega),
@@ -608,9 +575,9 @@ most what the next `pop` would remove.
 
 The next `top` is still one of the heap's elements, and `top_le` puts the
 current one below all of them. -/
-theorem top_le_top_pop (heap : Heap α) (hlaw : LawfulCmp heap.cmp)
+theorem top_le_top_pop (heap : Heap α cmp) (hlaw : LawfulCmp cmp)
     (hvalid : heap.Valid) (h : 0 < heap.n) (h' : 0 < (heap.pop h).n) :
-    LE heap.cmp (heap.top h) ((heap.pop h).top h') :=
+    LE cmp (heap.top h) ((heap.pop h).top h') :=
   top_le_of_mem heap hlaw hvalid h
     ((pop_data_perm heap h).mem_iff.mp
       (List.mem_append_left _ (Vector.mem_toList_iff.mpr (Vector.getElem_mem h'))))
@@ -622,11 +589,11 @@ theorem top_le_top_pop (heap : Heap α) (hlaw : LawfulCmp heap.cmp)
     (empty cmp).pop? = none := by
   simp [pop?]
 
-@[simp] theorem pop?_eq_some (heap : Heap α) (h : 0 < heap.n) :
+@[simp] theorem pop?_eq_some (heap : Heap α cmp) (h : 0 < heap.n) :
     heap.pop? = some (heap.pop h) := by
   simp [pop?, h]
 
-@[simp] theorem top?_eq_some_top (heap : Heap α) (h : 0 < heap.n) :
+@[simp] theorem top?_eq_some_top (heap : Heap α cmp) (h : 0 < heap.n) :
     heap.top? = some (heap.top h) := by
   simp [top?, top, h]
 
@@ -634,10 +601,10 @@ theorem top_le_top_pop (heap : Heap α) (hlaw : LawfulCmp heap.cmp)
 
 /-- Induction by popping: to prove something of every heap it is enough to prove
 it of `heap` given it for `heap.pop`. -/
-theorem pop_induction {motive : Heap α → Prop}
-    (step : ∀ heap : Heap α, (∀ h : 0 < heap.n, motive (heap.pop h)) → motive heap)
-    (heap : Heap α) : motive heap := by
-  suffices hk : ∀ k (heap : Heap α), heap.n ≤ k → motive heap from hk heap.n heap le_rfl
+theorem pop_induction {motive : Heap α cmp → Prop}
+    (step : ∀ heap : Heap α cmp, (∀ h : 0 < heap.n, motive (heap.pop h)) → motive heap)
+    (heap : Heap α cmp) : motive heap := by
+  suffices hk : ∀ k (heap : Heap α cmp), heap.n ≤ k → motive heap from hk heap.n heap le_rfl
   intro k
   induction k with
   | zero => exact fun heap hk => step heap fun h => absurd h (by omega)
@@ -647,7 +614,7 @@ theorem pop_induction {motive : Heap α → Prop}
 /-- Any step count past `heap.n` drains the same list, which is what lets `drain`
 pass `heap.n` and still satisfy the equation it would have had as a recursive
 definition. -/
-theorem Impl.drainFuel_congr : ∀ (k l : Nat) (heap : Heap α), heap.n ≤ k → heap.n ≤ l →
+theorem Impl.drainFuel_congr : ∀ (k l : Nat) (heap : Heap α cmp), heap.n ≤ k → heap.n ≤ l →
     Impl.drainFuel k heap = Impl.drainFuel l heap := by
   intro k
   induction k with
@@ -672,7 +639,7 @@ theorem Impl.drainFuel_congr : ∀ (k l : Nat) (heap : Heap α), heap.n ≤ k �
           · rw [dif_neg h, dif_neg h]
 
 /-- `drain` pops once and drains the rest. -/
-theorem drain_eq (heap : Heap α) :
+theorem drain_eq (heap : Heap α cmp) :
     heap.drain = if h : 0 < heap.n then heap.top h :: (heap.pop h).drain else [] := by
   unfold drain
   by_cases h : 0 < heap.n
@@ -687,7 +654,7 @@ theorem drain_eq (heap : Heap α) :
 
 @[simp] theorem drain_empty (cmp : α → α → Ordering) : (empty cmp).drain = [] := rfl
 
-@[simp] theorem drain_length (heap : Heap α) : heap.drain.length = heap.n := by
+@[simp] theorem drain_length (heap : Heap α cmp) : heap.drain.length = heap.n := by
   induction heap using pop_induction with
   | step heap ih =>
       rw [drain_eq]
@@ -699,7 +666,7 @@ theorem drain_eq (heap : Heap α) :
         simp [hn]
 
 /-- `drain` hands back exactly the elements the heap held. -/
-theorem drain_perm (heap : Heap α) :
+theorem drain_perm (heap : Heap α cmp) :
     heap.drain.Perm heap.data.toList := by
   induction heap using pop_induction with
   | step heap ih =>
@@ -715,8 +682,8 @@ theorem drain_perm (heap : Heap α) :
 
 /-- Draining a heap in order yields a sorted list: not merely non-decreasing
 step to step, but every element below every later one. -/
-theorem drain_sorted : ∀ (heap : Heap α), LawfulCmp heap.cmp →
-    heap.Valid → heap.drain.Sorted (LE heap.cmp) := by
+theorem drain_sorted : ∀ (heap : Heap α cmp), LawfulCmp cmp →
+    heap.Valid → heap.drain.Sorted (LE cmp) := by
   intro heap
   induction heap using pop_induction with
   | step heap ih =>
@@ -731,17 +698,14 @@ theorem drain_sorted : ∀ (heap : Heap α), LawfulCmp heap.cmp →
           refine top_le_of_mem heap hlaw hvalid h ?_
           exact (pop_data_perm heap h).mem_iff.mp
             (List.mem_append_left _ ((drain_perm (heap.pop h)).subset hb))
-        · have hsorted := ih h (by rw [pop_cmp]; exact hlaw) (pop_Valid heap hlaw hvalid h)
-          rwa [pop_cmp] at hsorted
+        · exact ih h hlaw (pop_Valid heap hlaw hvalid h)
       · rw [dif_neg h]
         exact List.sorted_nil
 
 /-- Heapsort: `ofArray` then `drain` sorts an array. -/
 theorem drain_ofArray_sorted (xs : Array α) (cmp : α → α → Ordering)
-    (hlaw : LawfulCmp cmp) : ((ofArray xs cmp).drain).Sorted (LE cmp) := by
-  have hsorted := drain_sorted (ofArray xs cmp) (by rw [ofArray_cmp]; exact hlaw)
-    (ofArray_Valid xs cmp hlaw)
-  rwa [ofArray_cmp] at hsorted
+    (hlaw : LawfulCmp cmp) : ((ofArray xs cmp).drain).Sorted (LE cmp) :=
+  drain_sorted (ofArray xs cmp) hlaw (ofArray_Valid xs cmp hlaw)
 
 /-- …and it sorts exactly the elements it was given. -/
 theorem drain_ofArray_perm (xs : Array α) (cmp : α → α → Ordering) :
