@@ -614,19 +614,20 @@ theorem pop_induction {motive : Heap α cmp → Prop}
 /-- Any step count past `heap.n` drains the same list, which is what lets `drain`
 pass `heap.n` and still satisfy the equation it would have had as a recursive
 definition. -/
-theorem Impl.drainFuel_congr : ∀ (k l : Nat) (heap : Heap α cmp), heap.n ≤ k → heap.n ≤ l →
-    Impl.drainFuel k heap = Impl.drainFuel l heap := by
+theorem Impl.drainFuel_congr : ∀ (k l : Nat) (heap : Heap α cmp) (acc : List α),
+    heap.n ≤ k → heap.n ≤ l →
+    Impl.drainFuel k heap acc = Impl.drainFuel l heap acc := by
   intro k
   induction k with
   | zero =>
-      intro l heap hk hl
+      intro l heap acc hk hl
       cases l with
       | zero => rfl
       | succ l =>
           simp only [Impl.drainFuel]
           rw [dif_neg (by omega)]
   | succ k ih =>
-      intro l heap hk hl
+      intro l heap acc hk hl
       cases l with
       | zero =>
           simp only [Impl.drainFuel]
@@ -635,20 +636,37 @@ theorem Impl.drainFuel_congr : ∀ (k l : Nat) (heap : Heap α cmp), heap.n ≤ 
           simp only [Impl.drainFuel]
           by_cases h : 0 < heap.n
           · rw [dif_pos h, dif_pos h,
-              ih l (heap.pop h) (by rw [pop_n]; omega) (by rw [pop_n]; omega)]
+              ih l (heap.pop h) _ (by rw [pop_n]; omega) (by rw [pop_n]; omega)]
           · rw [dif_neg h, dif_neg h]
+
+/-- The accumulator is only ever prepended to, so it can be peeled off. -/
+theorem Impl.drainFuel_append : ∀ (k : Nat) (heap : Heap α cmp) (acc : List α),
+    Impl.drainFuel k heap acc = Impl.drainFuel k heap [] ++ acc := by
+  intro k
+  induction k with
+  | zero => intro heap acc; rfl
+  | succ k ih =>
+      intro heap acc
+      simp only [Impl.drainFuel]
+      by_cases h : 0 < heap.n
+      · rw [dif_pos h, dif_pos h, ih (heap.pop h) (heap.top h :: acc),
+          ih (heap.pop h) [heap.top h]]
+        simp
+      · rw [dif_neg h, dif_neg h]
+        simp
 
 /-- `drain` pops once and drains the rest. -/
 theorem drain_eq (heap : Heap α cmp) :
     heap.drain = if h : 0 < heap.n then heap.top h :: (heap.pop h).drain else [] := by
   unfold drain
   by_cases h : 0 < heap.n
-  · rw [dif_pos h, Impl.drainFuel_congr heap.n (heap.n - 1 + 1) heap le_rfl (by omega)]
+  · rw [dif_pos h, Impl.drainFuel_congr heap.n (heap.n - 1 + 1) heap [] le_rfl (by omega)]
     simp only [Impl.drainFuel]
-    rw [dif_pos h]
+    rw [dif_pos h, Impl.drainFuel_append, List.reverse_append]
+    simp only [List.reverse_cons, List.reverse_nil, List.nil_append, List.singleton_append]
     congr 1
-    exact Impl.drainFuel_congr (heap.n - 1) (heap.pop h).n (heap.pop h)
-      (by rw [pop_n]) (by rw [pop_n])
+    exact congrArg List.reverse (Impl.drainFuel_congr (heap.n - 1) (heap.pop h).n (heap.pop h) []
+      (by rw [pop_n]) (by rw [pop_n]))
   · rw [dif_neg h, show heap.n = 0 by omega]
     rfl
 

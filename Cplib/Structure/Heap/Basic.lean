@@ -149,11 +149,26 @@ namespace Impl
 
 /-- `drain` with an explicit step count, which makes it structurally recursive
 and so keeps the termination argument out of this module: that `pop` shortens
-the heap is `Heap.pop_n`, which lives with the other proofs. -/
-@[specialize] def drainFuel : Nat → Heap α cmp → List α
-  | 0, _ => []
-  | fuel + 1, heap =>
-      if h : 0 < heap.n then heap.top h :: drainFuel fuel (heap.pop h) else []
+the heap is `Heap.pop_n`, which lives with the other proofs.
+
+Elements are gathered into `acc`, newest first, which makes the recursion a tail
+call. Consing them on the way out instead would cost one stack frame per
+element, and that overflows somewhere past 50000 of them.
+
+Consing onto `acc` before popping is load-bearing, and not for the obvious
+reason. `Heap` and `List.cons` are both two-field cells, so the compiler would
+rather reuse the heap's cell for the cons than allocate — and to keep that cell
+available it holds a reference to the heap across the `pop`, which sends `pop`
+down the path that copies the whole vector. One cell saved, `O(n)` words
+copied, every step. Building the cons while the heap is still needed leaves no
+dead cell to reuse, and `pop` gets the heap to itself. -/
+@[specialize] def drainFuel : Nat → Heap α cmp → List α → List α
+  | 0, _, acc => acc
+  | fuel + 1, heap, acc =>
+      if h : 0 < heap.n then
+        let acc := heap.top h :: acc
+        drainFuel fuel (heap.pop h) acc
+      else acc
 
 end Impl
 
@@ -168,7 +183,8 @@ For a heap in order this list is sorted (`Heap.drain_sorted`), so
 (Heap.ofArray #[5, 1, 4, 1, 3]).drain   -- [1, 1, 3, 4, 5]
 ```
 -/
-@[specialize] def drain (heap : Heap α cmp) : List α := Impl.drainFuel heap.n heap
+@[specialize] def drain (heap : Heap α cmp) : List α :=
+  (Impl.drainFuel heap.n heap []).reverse
 
 end Heap
 
