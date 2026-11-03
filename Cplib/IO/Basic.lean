@@ -145,4 +145,7 @@ def printMatrix [ToString α] (as : Array (Array α)) (delimRow : String := "\n"
     row.toList.map toString |> delimColumn.intercalate
   ) |> (printStringList · delimRow)
 
+def printYesNo (b : Bool) : IO Unit := IO.println <| if b then "Yes" else "No"
+def printAliceBob (b : Bool) : IO Unit := IO.println <| if b then "Alice" else "Bob"
+
 end Cplib
