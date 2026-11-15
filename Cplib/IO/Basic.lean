@@ -124,14 +124,31 @@ def readNatMatrix (n : Nat) : IO (Array (Array Nat)) :=
 def readIntMatrix (n : Nat) : IO (Array (Array Int)) :=
   Array.range n |>.mapM (fun _ => readIntArray)
 
-/-- Read `m` undirected edges over `n` vertices, one per line, and return the
-adjacency list. `offset` is subtracted from every endpoint, so the default of
-`1` converts the usual 1-indexed input to 0-indexed vertices. -/
-def readGraph (n m : Nat) (offset : Nat := 1) : IO (Array (List Nat)) :=
+/-- Read `m` edges over `n` vertices, one per line, and return the adjacency
+list. Edges are undirected unless `directed` is `true`. `offset` is subtracted
+from every endpoint, so the default of `1` converts the usual 1-indexed input
+to 0-indexed vertices. -/
+def readGraph (n m : Nat) (offset : Nat := 1) (directed : Bool := false) :
+    IO (Array (List Nat)) :=
   Nat.foldM m (fun _ _ g => do
     let (a, b) ← readNats2
     let (a, b) := (a - offset, b - offset)
-    return g.modify a (b :: ·) |>.modify b (a :: ·)
+    let g := g.modify a (b :: ·)
+    return if directed then g else g.modify b (a :: ·)
+  ) (Array.replicate n [])
+
+/-- Read `m` weighted edges `a b w` over `n` vertices, one per line, and
+return adjacency lists of `(neighbor, weight)` pairs. Edges are undirected
+unless `directed` is `true`. `offset` is subtracted only from endpoints;
+weights are unchanged. The default offset of `1` converts 1-indexed input
+to 0-indexed vertices. -/
+def readWeightedGraph (n m : Nat) (offset : Nat := 1) (directed : Bool := false) :
+    IO (Array (List (Nat × Nat))) :=
+  Nat.foldM m (fun _ _ g => do
+    let (a, b, w) ← readNats3
+    let (a, b) := (a - offset, b - offset)
+    let g := g.modify a ((b, w) :: ·)
+    return if directed then g else g.modify b ((a, w) :: ·)
   ) (Array.replicate n [])
 
 def printStringList (as : List String) (delim : String := " ") : IO Unit :=
